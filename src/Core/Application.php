@@ -1575,6 +1575,16 @@ class Application extends Container implements
     }
 
     /**
+     * Get the current application fallback locale.
+     *
+     * @return string
+     */
+    public function getFallbackLocale()
+    {
+        return $this['config']->get('app.fallback_locale');
+    }
+
+    /**
      * Check if passed locale is current locale.
      *
      * @param string $locale
