@@ -6,6 +6,7 @@ use ErrorException;
 use Exception;
 use Illuminate\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Log\LogManager;
 use Monolog\Handler\NullHandler;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -31,8 +32,6 @@ class ExceptionHandler
 
         $this->app = $app;
 
-        error_reporting(-1);
-
         set_error_handler([$this, 'handleError']);
 
         set_exception_handler([$this, 'handleException']);
@@ -57,13 +56,16 @@ class ExceptionHandler
      */
     public function handleError($level, $message, $file = '', $line = 0, $context = [])
     {
+        if (! (error_reporting() & $level)) {
+            return;
+        }
+
         if ($this->isDeprecation($level)) {
             return $this->handleDeprecation($message, $file, $line);
         }
 
-        if (error_reporting() & $level) {
-            throw new ErrorException($message, 0, $level, $file, $line);
-        }
+        // If we reach here, it's a non-deprecation error that should be thrown.
+        throw new ErrorException($message, 0, $level, $file, $line);
     }
 
     /**
@@ -75,9 +77,11 @@ class ExceptionHandler
      */
     public function handleDeprecation($message, $file, $line)
     {
-        if (! class_exists(LogManager::class)
-        || ! $this->app->hasBeenBootstrapped()
-        || $this->app->runningUnitTests()) {
+        if (
+            ! class_exists(LogManager::class)
+            || ! $this->app->hasBeenBootstrapped()
+            || $this->app->runningUnitTests()
+        ) {
             return;
         }
 
@@ -101,16 +105,25 @@ class ExceptionHandler
 
     protected function ensureDeprecationLoggerIsConfigured()
     {
-        with($this->app['config'], function ($config) {
+        with($this->app['config'], function (Config $config) {
             if ($config->get('logging.channels.deprecations')) {
                 return;
             }
 
             $this->ensureNullLogDriverIsConfigured();
 
-            $driver = $config->get('logging.deprecations') ?? 'null';
+            $deprecationConfig = $config->get('logging.deprecations');
 
-            $config->set('logging.channels.deprecations', $config->get("logging.channels.{$driver}"));
+            // Case 1: The config is an array (modern inline definition).
+            if (is_array($deprecationConfig)) {
+                $config->set('logging.channels.deprecations', $deprecationConfig);
+                // Case 2: The config is a string (legacy channel name).
+            } elseif (is_string($deprecationConfig)) {
+                $config->set('logging.channels.deprecations', $config->get("logging.channels.{$deprecationConfig}"));
+                // Case 3: The config is null or not set, default to the 'null' channel.
+            } else {
+                $config->set('logging.channels.deprecations', $config->get('logging.channels.null'));
+            }
         });
     }
 
@@ -127,6 +140,7 @@ class ExceptionHandler
             ]);
         });
     }
+
 
     /**
      * Handle an uncaught exception from the application.
