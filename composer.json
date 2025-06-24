@@ -29,7 +29,7 @@
   },
   "require": {
     "php": "^8.2",
-    "composer/installers": "^1.9",
+    "composer/installers": "^2",
     "dragonmantank/cron-expression": "^3.0.2",
     "filp/whoops": "^2.1",
     "guzzlehttp/guzzle": "^7.2",
