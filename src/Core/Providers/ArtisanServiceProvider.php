@@ -145,11 +145,11 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
         'RouteClear' => 'command.route.clear',
         'RouteList' => 'command.route.list',
         'SaltsGenerate' => 'command.salts.generate',
-        'ScheduleFinish' => ScheduleFinishCommand::class,
-        'ScheduleList' => ScheduleListCommand::class,
-        'ScheduleRun' => ScheduleRunCommand::class,
-        'ScheduleTest' => ScheduleTestCommand::class,
-        'ScheduleWork' => ScheduleWorkCommand::class,
+        'ScheduleFinish' => 'command.schedule.finish',
+        'ScheduleRun' => 'command.schedule.run',
+        'ScheduleList' => 'command.schedule.list',
+        'ScheduleTest' => 'command.schedule.test',
+        'ScheduleWork' => 'command.schedule.work',
         'SchemaDump' => 'command.schema.dump',
         'Seed' => 'command.seed',
         'StorageLink' => 'command.storage.link',
@@ -1100,43 +1100,63 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
     }
 
     /**
-     * Register the schedule:finish {id} command.
+     * Register the command.
+     *
+     * @return void
      */
     protected function registerScheduleFinishCommand()
     {
-        $this->app->singleton(ScheduleFinishCommand::class);
+        $this->app->singleton('command.schedule.finish', function () {
+            return new ScheduleFinishCommand;
+        });
     }
 
     /**
-     * Register the schedule:list command.
-     */
-    protected function registerScheduleListCommand()
-    {
-        $this->app->singleton(ScheduleListCommand::class);
-    }
-
-    /**
-     * Register the schedule:run command.
+     * Register the command.
+     *
+     * @return void
      */
     protected function registerScheduleRunCommand()
     {
-        $this->app->singleton(ScheduleRunCommand::class);
+        $this->app->singleton('command.schedule.run', function () {
+            return new ScheduleRunCommand;
+        });
     }
 
     /**
-     * Register the schedule:test command.
-     */
-    protected function registerScheduleTestCommand()
-    {
-        $this->app->singleton(ScheduleTestCommand::class);
-    }
-
-    /**
-     * Register the schedule:work command.
+     * Register the command.
+     *
+     * @return void
      */
     protected function registerScheduleWorkCommand()
     {
-        $this->app->singleton(ScheduleWorkCommand::class);
+        $this->app->singleton('command.schedule.work', function () {
+            return new ScheduleWorkCommand;
+        });
+    }
+
+    /**
+     * Register the command.
+     *
+     * @return void
+     */
+    protected function registerScheduleListCommand()
+    {
+        $this->app->singleton('command.schedule.list', function () {
+            return new ScheduleListCommand;
+        });
+    }
+
+    /**
+     * Register the command.
+     *
+     * @return void
+     */
+    protected function registerScheduleTestCommand()
+    {
+        $this->app->singleton('command.schedule.test', function () {
+            return new ScheduleTestCommand;
+        });
     }
 
     /**
