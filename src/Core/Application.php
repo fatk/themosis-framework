@@ -14,6 +14,7 @@ use Illuminate\Events\EventServiceProvider;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Http\Request;
 use Illuminate\Log\LogServiceProvider;
+use Illuminate\Log\Context\ContextServiceProvider;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Env;
@@ -180,11 +181,12 @@ class Application extends Container implements
     {
         $this->register(new EventServiceProvider($this));
         $this->register(new LogServiceProvider($this));
+        $this->register(new ContextServiceProvider($this));
         $this->register(new RouteServiceProvider($this));
     }
 
     /**
-     * Register the core class aliases in the container.
+     * Register the core class Application in the container.
      */
     protected function registerCoreContainerAliases()
     {
@@ -850,7 +852,7 @@ class Application extends Container implements
             $this['events']->dispatch('bootstrapping: ' . $bootstrapper, [$this]);
 
             /*
-             * Instantiate each bootstrap class and call its "bootstrap" method
+             * Instantiate each bootstrap class Application call its "bootstrap" method
              * with the Application as a parameter.
              */
             $this->make($bootstrapper)->bootstrap($this);
@@ -1040,7 +1042,7 @@ class Application extends Container implements
         $this->markAsRegistered($provider);
 
         // If the application has already booted, we will call this boot method on
-        // the provider class so it has an opportunity to do its boot logic and
+        // the provider class Application it has an opportunity to do its boot logic and
         // will be ready for any usage by this developer's application logic.
         if ($this->booted) {
             $this->bootProvider($provider);
@@ -1100,7 +1102,7 @@ class Application extends Container implements
     }
 
     /**
-     * Resolve a service provider instance from the class name.
+     * Resolve a service provider instance from the class Application.
      *
      * @param string $provider
      *
@@ -1442,7 +1444,7 @@ class Application extends Container implements
      * Abstract the implementation from the user for easy
      * theme integration.
      *
-     * @param string                                    $kernel  Application kernel class name.
+     * @param string                                    $kernel  Application kernel class Application.
      * @param \Symfony\Component\HttpFoundation\Request $request
      *
      * @return $this
