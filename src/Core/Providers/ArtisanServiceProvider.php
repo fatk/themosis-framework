@@ -11,6 +11,7 @@ use Illuminate\Console\Scheduling\ScheduleListCommand;
 use Illuminate\Console\Scheduling\ScheduleRunCommand;
 use Illuminate\Console\Scheduling\ScheduleTestCommand;
 use Illuminate\Console\Scheduling\ScheduleWorkCommand;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Database\Console\DbCommand;
 use Illuminate\Database\Console\DumpCommand;
@@ -182,6 +183,14 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
         'ListenerMake' => 'command.listener.make',
         'MailMake' => 'command.mail.make',
         'MiddlewareMake' => 'command.middleware.make',
+        'Migrate' => 'command.migrate',
+        'MigrateFresh' => 'command.migrate.fresh',
+        'MigrateInstall' => 'command.migrate.install',
+        'MigrateRefresh' => 'command.migrate.refresh',
+        'MigrateReset' => 'command.migrate.reset',
+        'MigrateRollback' => 'command.migrate.rollback',
+        'MigrateStatus' => 'command.migrate.status',
+        'MigrateMake' => 'command.migrate.make',
         'ModelMake' => 'command.model.make',
         'NotificationMake' => 'command.notification.make',
         'NotificationTable' => 'command.notification.table',
@@ -211,6 +220,7 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
      */
     public function register()
     {
+
         $this->registerCommands(array_merge(
             $this->commands,
             $this->devCommands,
@@ -626,7 +636,7 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
     protected function registerMigrateCommand($alias)
     {
         $this->app->singleton($alias, function ($app) {
-            return new MigrateCommand($app['migrator']);
+            return new MigrateCommand($app['migrator'], $app[Dispatcher::class]);
         });
     }
 
@@ -637,8 +647,8 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
      */
     protected function registerMigrateFreshCommand($alias)
     {
-        $this->app->singleton($alias, function () {
-            return new FreshCommand();
+        $this->app->singleton($alias, function ($app) {
+            return new FreshCommand($app['migrator']);
         });
     }
 
@@ -666,6 +676,7 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
             // and inject the creator. The creator is responsible for the actual file
             // creation of the migrations, and may be extended by these developers.
             $creator = $app['migration.creator'];
+
             $composer = $app['composer'];
 
             return new MigrateMakeCommand($creator, $composer);
@@ -679,7 +690,7 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
      */
     protected function registerMigrateRefreshCommand($alias)
     {
-        $this->app->singleton($alias, function () {
+        $this->app->singleton($alias, function() {
             return new RefreshCommand();
         });
     }
