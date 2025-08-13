@@ -59,6 +59,7 @@ class ExceptionHandler
             return;
         }
 
+        // Handle deprecations
         if ($this->isDeprecation($level)) {
             try {
                 return $this->handleDeprecation($message, $file, $line);
@@ -68,8 +69,31 @@ class ExceptionHandler
             }
         }
 
-        // If we reach here, it's a non-deprecation error that should be thrown.
-        throw new ErrorException($message, 0, $level, $file, $line);
+        // Check if this is a warning or notice that shouldn't stop execution
+        if ($this->isWarning($level)) {
+            try {
+                // Log the warning if the app is bootstrapped
+                if ($this->app->hasBeenBootstrapped() && $this->app->bound('log')) {
+                    $this->app->make('log')->warning(sprintf(
+                        'PHP %s: %s in %s on line %s',
+                        $this->getErrorLevelString($level),
+                        $message,
+                        $file,
+                        $line
+                    ));
+                }
+                // Don't throw exception for warnings - allow execution to continue
+                return;
+            } catch (Exception $e) {
+                // If logging fails, continue without blocking
+                return;
+            }
+        }
+
+        // Only throw exceptions for fatal/serious errors
+        if ($this->shouldThrowException($level)) {
+            throw new ErrorException($message, 0, $level, $file, $line);
+        }
     }
 
     /**
@@ -92,7 +116,7 @@ class ExceptionHandler
         try {
             $logger = $this->app->make(LogManager::class);
             $this->ensureDeprecationLoggerIsConfigured();
-            
+
             $logger->channel('deprecations')->warning(sprintf(
                 '%s in %s on line %s',
                 $message,
@@ -109,7 +133,7 @@ class ExceptionHandler
     {
         try {
             $config = $this->app['config'];
-            
+
             if ($config->get('logging.channels.deprecations')) {
                 return;
             }
@@ -144,7 +168,7 @@ class ExceptionHandler
     {
         try {
             $config = $this->app['config'];
-            
+
             if ($config->get('logging.channels.null')) {
                 return;
             }
@@ -158,7 +182,6 @@ class ExceptionHandler
             return;
         }
     }
-
 
     /**
      * Handle an uncaught exception from the application.
@@ -202,6 +225,64 @@ class ExceptionHandler
     protected function isDeprecation($level)
     {
         return in_array($level, [E_DEPRECATED, E_USER_DEPRECATED]);
+    }
+
+    /**
+     * Determine if the error level is a warning or notice.
+     *
+     * @param int $level
+     *
+     * @return bool
+     */
+    protected function isWarning($level)
+    {
+        return in_array($level, [
+            E_WARNING,
+            E_USER_WARNING,
+            E_NOTICE,
+            E_USER_NOTICE,
+            E_STRICT
+        ]);
+    }
+
+    /**
+     * Determine if the error level should throw an exception.
+     *
+     * @param int $level
+     *
+     * @return bool
+     */
+    protected function shouldThrowException($level)
+    {
+        return in_array($level, [
+            E_ERROR,
+            E_CORE_ERROR,
+            E_COMPILE_ERROR,
+            E_USER_ERROR,
+            E_RECOVERABLE_ERROR,
+            E_PARSE
+        ]);
+    }
+
+    /**
+     * Get a string representation of the error level.
+     *
+     * @param int $level
+     *
+     * @return string
+     */
+    protected function getErrorLevelString($level)
+    {
+        $levels = [
+            E_WARNING => 'Warning',
+            E_USER_WARNING => 'User Warning',
+            E_NOTICE => 'Notice',
+            E_USER_NOTICE => 'User Notice',
+            E_STRICT => 'Strict Standards',
+            E_RECOVERABLE_ERROR => 'Recoverable Error',
+        ];
+
+        return $levels[$level] ?? 'Unknown Error';
     }
 
     /**
