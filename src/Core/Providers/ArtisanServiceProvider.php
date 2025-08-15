@@ -11,7 +11,6 @@ use Illuminate\Console\Scheduling\ScheduleListCommand;
 use Illuminate\Console\Scheduling\ScheduleRunCommand;
 use Illuminate\Console\Scheduling\ScheduleTestCommand;
 use Illuminate\Console\Scheduling\ScheduleWorkCommand;
-use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Database\Console\DbCommand;
 use Illuminate\Database\Console\DumpCommand;
 use Illuminate\Database\Console\Factories\FactoryMakeCommand;
@@ -100,14 +99,8 @@ use Themosis\Core\Console\ViewCacheCommand;
 use Themosis\Core\Console\ViewClearCommand;
 use Themosis\Core\Console\WidgetMakeCommand;
 
-class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvider
+class ArtisanServiceProvider extends ServiceProvider
 {
-    /**
-     * Defer the loading of the provider.
-     *
-     * @var bool
-     */
-    protected $defer = true;
 
     /**
      * Commands to register.
@@ -1385,13 +1378,4 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
         });
     }
 
-    /**
-     * Return list of services provided.
-     *
-     * @return array
-     */
-    public function provides()
-    {
-        return array_merge(array_values($this->commands), array_values($this->devCommands));
-    }
 }
