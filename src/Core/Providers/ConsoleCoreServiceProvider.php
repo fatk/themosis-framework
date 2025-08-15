@@ -2,7 +2,6 @@
 
 namespace Themosis\Core\Providers;
 
-use Illuminate\Database\MigrationServiceProvider;
 use Illuminate\Support\AggregateServiceProvider;
 
 class ConsoleCoreServiceProvider extends AggregateServiceProvider
@@ -14,7 +13,6 @@ class ConsoleCoreServiceProvider extends AggregateServiceProvider
      */
     protected $providers = [
         ArtisanServiceProvider::class,
-        MigrationServiceProvider::class,
         ComposerServiceProvider::class,
     ];
 }
