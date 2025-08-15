@@ -24,6 +24,9 @@ use Illuminate\Database\Console\Migrations\ResetCommand;
 use Illuminate\Database\Console\Migrations\RollbackCommand;
 use Illuminate\Database\Console\Migrations\StatusCommand;
 use Illuminate\Database\Console\Seeds\SeedCommand;
+use Illuminate\Database\Migrations\DatabaseMigrationRepository;
+use Illuminate\Database\Migrations\MigrationCreator;
+use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Database\Console\Seeds\SeederMakeCommand;
 use Illuminate\Database\Console\WipeCommand;
 use Illuminate\Notifications\Console\NotificationTableCommand;
@@ -219,10 +222,57 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
      */
     public function register()
     {
+        $this->registerMigrationServices();
+        
         $this->registerCommands(array_merge(
             $this->commands,
             $this->devCommands,
         ));
+    }
+
+    /**
+     * Register migration-related services.
+     */
+    protected function registerMigrationServices()
+    {
+        $this->registerRepository();
+        $this->registerMigrator();
+        $this->registerCreator();
+    }
+
+    /**
+     * Register the migration repository service.
+     */
+    protected function registerRepository()
+    {
+        $this->app->singleton('migration.repository', function ($app) {
+            $migrations = $app['config']['database.migrations'];
+            $table = is_array($migrations) ? ($migrations['table'] ?? null) : $migrations;
+            return new DatabaseMigrationRepository($app['db'], $table);
+        });
+    }
+
+    /**
+     * Register the migrator service.
+     */
+    protected function registerMigrator()
+    {
+        $this->app->singleton('migrator', function ($app) {
+            $repository = $app['migration.repository'];
+            return new Migrator($repository, $app['db'], $app['files'], $app['events']);
+        });
+
+        $this->app->bind(Migrator::class, fn ($app) => $app['migrator']);
+    }
+
+    /**
+     * Register the migration creator.
+     */
+    protected function registerCreator()
+    {
+        $this->app->singleton('migration.creator', function ($app) {
+            return new MigrationCreator($app['files'], $app->basePath('stubs'));
+        });
     }
 
     /**
@@ -645,8 +695,8 @@ class ArtisanServiceProvider extends ServiceProvider implements DeferrableProvid
      */
     protected function registerMigrateFreshCommand($alias)
     {
-        $this->app->singleton($alias, function () {
-            return new FreshCommand();
+        $this->app->singleton($alias, function ($app) {
+            return new FreshCommand($app['migrator']);
         });
     }
 
