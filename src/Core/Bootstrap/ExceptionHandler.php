@@ -240,8 +240,7 @@ class ExceptionHandler
             E_WARNING,
             E_USER_WARNING,
             E_NOTICE,
-            E_USER_NOTICE,
-            E_STRICT
+            E_USER_NOTICE
         ]);
     }
 
