@@ -90,7 +90,7 @@ class VendorPublishCommand extends Command
     {
         $this->determineWhatShouldBePublished();
 
-        foreach ($this->tags ?: [null] as $tag) {
+        foreach ($this->tags as $tag) {
             $this->publishTag($tag);
         }
     }
