@@ -2,6 +2,7 @@
 
 namespace Themosis\Tests\Core;
 
+use Illuminate\Bus\Dispatcher;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Support\ServiceProvider;
 use PHPUnit\Framework\TestCase;
@@ -91,6 +92,37 @@ class ApplicationContractTest extends TestCase
 
         rmdir($dir);
     }
+
+    public function testTerminatingCallbacksRunWhenTheApplicationTerminates()
+    {
+        $app = new Application();
+        $ran = [];
+
+        $this->assertSame($app, $app->terminating(function () use (&$ran, $app) {
+            $ran[] = 'first';
+
+            $app->terminating(function () use (&$ran) {
+                $ran[] = 'registered while terminating';
+            });
+        }));
+
+        $app->terminate();
+
+        $this->assertSame(['first', 'registered while terminating'], $ran);
+    }
+
+    public function testJobsDispatchedAfterResponseRunOnTerminate()
+    {
+        $app = new Application();
+        $bus = new Dispatcher($app);
+        TerminatingJob::$handled = false;
+
+        $bus->dispatchAfterResponse(new TerminatingJob());
+        $this->assertFalse(TerminatingJob::$handled);
+
+        $app->terminate();
+        $this->assertTrue(TerminatingJob::$handled);
+    }
 }
 
 class CountingServiceProvider extends ServiceProvider
@@ -100,5 +132,15 @@ class CountingServiceProvider extends ServiceProvider
     public function register()
     {
         static::$registered++;
+    }
+}
+
+class TerminatingJob
+{
+    public static bool $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
     }
 }

@@ -1433,18 +1433,26 @@ class Application extends Container implements
      *
      * @return $this
      */
-    public function terminating($callback): void
+    public function terminating($callback)
     {
-        $this->events->listen(Events\Terminates::class, $callback);
+        $this->terminatingCallbacks[] = $callback;
+
+        return $this;
     }
 
     /**
      * Terminate the application.
+     *
+     * Callbacks registered while terminating (e.g. by another callback) run as well.
      */
     public function terminate()
     {
-        foreach ($this->terminatingCallbacks as $terminating) {
-            $this->call($terminating);
+        $index = 0;
+
+        while ($index < count($this->terminatingCallbacks)) {
+            $this->call($this->terminatingCallbacks[$index]);
+
+            $index++;
         }
     }
 
