@@ -3,8 +3,10 @@
 namespace Themosis\Core\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Container\Container;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Routing\RouteCollection;
+use Illuminate\Support\Facades\Facade;
 use Themosis\Core\Application;
 use Themosis\Core\Support\Providers\RouteServiceProvider;
 use Themosis\Route\Route;
@@ -91,6 +93,12 @@ class RouteCacheCommand extends Command
     {
         return tap(require $this->laravel->bootstrapPath('app.php'), function ($app) {
             $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
+            // The fresh application replaced the global instances: point them back
+            // to the running one so later commands (e.g. "optimize") use it.
+            Facade::clearResolvedInstances();
+            Facade::setFacadeApplication($this->laravel);
+            Container::setInstance($this->laravel);
         });
     }
 
