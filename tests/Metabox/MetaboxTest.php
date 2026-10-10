@@ -56,9 +56,7 @@ class MetaboxTest extends TestCase
 
     protected function getFieldsFactory()
     {
-        $viewFactory = $this->getMockBuilder('Illuminate\View\Factory')
-            ->disableOriginalConstructor()
-            ->getMock();
+        $viewFactory = $this->createStub('Illuminate\View\Factory');
 
         return new \Themosis\Field\Factory($this->getApplication(), $viewFactory);
     }

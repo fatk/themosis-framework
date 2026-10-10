@@ -39,7 +39,7 @@ class ProviderRepositoryTest extends TestCase
         $repository = $this->getMockBuilder('Themosis\Core\ProviderRepository')
             ->setConstructorArgs([
                 $app,
-                $this->getMockBuilder('Illuminate\Filesystem\Filesystem')->getMock(),
+                $this->createStub('Illuminate\Filesystem\Filesystem'),
                 __DIR__ . '/services.php',
             ])
             ->onlyMethods([
@@ -61,7 +61,7 @@ class ProviderRepositoryTest extends TestCase
             ->method('shouldRecompile')
             ->willReturn(false);
         $app->expects($this->once())->method('register')->with('foo');
-        $app->expects($this->any())->method('runningInConsole')->willReturn(false);
+        $app->method('runningInConsole')->willReturn(false);
         $app->expects($this->once())->method('addDeferredServices')->with(['deferred']);
 
         $repository->load([]);
@@ -78,7 +78,7 @@ class ProviderRepositoryTest extends TestCase
         $repository = $this->getMockBuilder('Themosis\Core\ProviderRepository')
             ->setConstructorArgs([
                 $app,
-                $this->getMockBuilder('Illuminate\Filesystem\Filesystem')->getMock(),
+                $this->createStub('Illuminate\Filesystem\Filesystem'),
                 __DIR__ . '/services.php',
             ])
             ->onlyMethods(['loadManifest', 'shouldRecompile', 'createProvider'])
@@ -91,7 +91,8 @@ class ProviderRepositoryTest extends TestCase
         $repository->method('shouldRecompile')->willReturn(true);
 
         $fooMock = new TestDeferredProvider($app);
-        $repository->method('createProvider')
+        $repository->expects($this->once())
+            ->method('createProvider')
             ->with('foo')
             ->willReturn($fooMock);
 
@@ -107,7 +108,7 @@ class ProviderRepositoryTest extends TestCase
     {
         $repo = new ProviderRepository(
             new Application(),
-            $this->getMockBuilder('Illuminate\Filesystem\Filesystem')->getMock(),
+            $this->createStub('Illuminate\Filesystem\Filesystem'),
             __DIR__ . '/services.php',
         );
 

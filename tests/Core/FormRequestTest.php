@@ -46,9 +46,6 @@ class FormRequestTest extends TestCase
 
         $request = $this->createRequest(['no' => 'name']);
 
-        $this->mocks['redirect']->expects($this->any())->method('withInput');
-        $this->mocks['redirect']->expects($this->any())->method('withErrors');
-
         $request->validateResolved();
     }
 
@@ -108,16 +105,14 @@ class FormRequestTest extends TestCase
      */
     protected function createRedirector($request)
     {
-        $redirector = $this->mocks['redirector'] = $this->getMockBuilder(Redirector::class)
-            ->setConstructorArgs([$generator = $this->createUrlGenerator()])
-            ->onlyMethods(['getUrlGenerator', 'to'])
-            ->getMock();
+        $generator = $this->createUrlGenerator();
+        $redirector = $this->mocks['redirector'] = $this->createStub(Redirector::class);
 
-        $redirector->expects($this->any())->method('getUrlGenerator')->willReturn($generator);
+        $redirector->method('getUrlGenerator')->willReturn($generator);
 
-        $redirector->expects($this->any())->method('to')->willReturn($this->createRedirectResponse());
+        $redirector->method('to')->willReturn($this->createRedirectResponse());
 
-        $generator->expects($this->any())->method('previous')->willReturn('previous');
+        $generator->method('previous')->willReturn('previous');
 
         return $redirector;
     }
@@ -125,27 +120,21 @@ class FormRequestTest extends TestCase
     /**
      * Create a URL generator.
      *
-     * @return \PHPUnit\Framework\MockObject\MockObject
+     * @return \PHPUnit\Framework\MockObject\Stub
      */
     protected function createUrlGenerator()
     {
-        return $this->mocks['generator'] = $this->getMockBuilder(UrlGenerator::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['previous'])
-            ->getMock();
+        return $this->mocks['generator'] = $this->createStub(UrlGenerator::class);
     }
 
     /**
      * Create a redirect response.
      *
-     * @return \PHPUnit\Framework\MockObject\MockObject
+     * @return \PHPUnit\Framework\MockObject\Stub
      */
     protected function createRedirectResponse()
     {
-        return $this->mocks['redirect'] = $this->getMockBuilder(RedirectResponse::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['withInput', 'WithErrors'])
-            ->getMock();
+        return $this->mocks['redirect'] = $this->createStub(RedirectResponse::class);
     }
 }
 

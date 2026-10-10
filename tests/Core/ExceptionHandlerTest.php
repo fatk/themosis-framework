@@ -56,13 +56,13 @@ class ExceptionHandlerTest extends TestCase
 
         $this->request = new TestRequest();
 
-        $this->config = $this->createMock(Repository::class);
+        $this->config = $this->createStub(Repository::class);
         $this->container->singleton('config', function () {
             return $this->config;
         });
 
-        $viewFactory = $this->createMock(Factory::class);
-        $redirector = $this->createMock(Redirector::class);
+        $viewFactory = $this->createStub(Factory::class);
+        $redirector = $this->createStub(Redirector::class);
 
         $this->container->singleton(
             'Illuminate\Contracts\Routing\ResponseFactory',
@@ -75,6 +75,14 @@ class ExceptionHandlerTest extends TestCase
         );
 
         $this->handler = new Handler($this->container);
+    }
+
+    /**
+     * Replace the config stub with a mock so expectations can be configured on it.
+     */
+    protected function mockConfig()
+    {
+        return $this->config = $this->createMock(Repository::class);
     }
 
     public function testHandlerReportExceptionAsContext()
@@ -130,7 +138,7 @@ class ExceptionHandlerTest extends TestCase
 
     public function testReturnsJsonWithStackTraceWhenAjaxRequestAndDebugTrue()
     {
-        $this->config->expects($this->once())
+        $this->mockConfig()->expects($this->once())
             ->method('get')
             ->with('app.debug', $this->equalTo(null))
             ->willReturn(true);
@@ -156,7 +164,7 @@ class ExceptionHandlerTest extends TestCase
 
     public function testReturnsJsonWithoutStackTraceWhenAjaxRequestAndDebugFalseAndExceptionMessageIsMasked()
     {
-        $this->config->expects($this->once())
+        $this->mockConfig()->expects($this->once())
             ->method('get')
             ->with('app.debug', $this->equalTo(null))
             ->willReturn(false);
@@ -177,7 +185,7 @@ class ExceptionHandlerTest extends TestCase
 
     public function testReturnsJsonWithoutStackTraceWhenAjaxRequestAndDebugFalseAndHttpExceptionIsShown()
     {
-        $this->config->expects($this->once())
+        $this->mockConfig()->expects($this->once())
             ->method('get')
             ->with('app.debug', $this->equalTo(null))
             ->willReturn(false);
@@ -200,7 +208,7 @@ class ExceptionHandlerTest extends TestCase
 
     public function testReturnsJsonWithoutStackTraceWhenAjaxRequestAndDebugFalseAndAccessDeniedHttpExceptionErrorIsShown()
     {
-        $this->config->expects($this->once())
+        $this->mockConfig()->expects($this->once())
             ->method('get')
             ->with('app.debug', $this->equalTo(null))
             ->willReturn(false);
@@ -246,7 +254,7 @@ class ExceptionHandlerTest extends TestCase
             return $redirector;
         });
 
-        $file = $this->createMock(UploadedFile::class);
+        $file = $this->createStub(UploadedFile::class);
         $file->method('getPathname')->willReturn('photo.jpg');
         $file->method('getClientOriginalName')->willReturn('photo.jpg');
         $file->method('getClientMimeType')->willReturn('image/jpeg');
@@ -254,7 +262,7 @@ class ExceptionHandlerTest extends TestCase
 
         $request = Request::create('/', 'POST', $argumentExpected, [], ['photo' => $file]);
 
-        $validator = $this->createMock(Validator::class);
+        $validator = $this->createStub(Validator::class);
         $validator->method('errors')->willReturn(new MessageBag(['error' => 'My custom validation exception']));
 
         $validationException = new ValidationException($validator);

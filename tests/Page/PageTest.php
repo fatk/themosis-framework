@@ -29,20 +29,19 @@ class PageTest extends TestCase
             ->getMock();
     }
 
+    protected function getActionStub()
+    {
+        return $this->createStub(\Themosis\Hook\ActionBuilder::class);
+    }
+
     protected function getFilter()
     {
-        return $this->getMockBuilder(\Themosis\Hook\FilterBuilder::class)
-            ->onlyMethods(['add'])
-            ->disableOriginalConstructor()
-            ->getMock();
+        return $this->createStub(\Themosis\Hook\FilterBuilder::class);
     }
 
     protected function getApplication()
     {
-        $application = $this->getMockBuilder(\Themosis\Core\Application::class)
-            ->onlyMethods(['getLocale'])
-            ->disableOriginalConstructor()
-            ->getMock();
+        $application = $this->createStub(\Themosis\Core\Application::class);
 
         $application->method('getLocale')->willReturn('en_US');
 
@@ -154,7 +153,7 @@ class PageTest extends TestCase
 
     public function testCreatePageWithCustomView()
     {
-        $factory = $this->getFactory($this->getActionMock());
+        $factory = $this->getFactory($this->getActionStub());
 
         $page = $factory->make('custom', 'A Page');
         $page->ui()->setView('custom');
@@ -180,7 +179,7 @@ class PageTest extends TestCase
 
     public function testCreateASettingsPage()
     {
-        $factory = $this->getFactory($this->getActionMock());
+        $factory = $this->getFactory($this->getActionStub());
         $fieldFactory = new \Themosis\Field\Factory($this->getApplication(), $this->getViewFactory());
 
         $page = $factory->make('the-settings', 'App Settings')->set();
@@ -224,7 +223,7 @@ class PageTest extends TestCase
 
     public function testCreateCustomPageUsingComposedViewPath()
     {
-        $factory = $this->getFactory($this->getActionMock());
+        $factory = $this->getFactory($this->getActionStub());
 
         $page = $factory->make('some-page', 'Awesome Page')
             ->setView('custom')
@@ -235,7 +234,7 @@ class PageTest extends TestCase
 
     public function testCreateCustomPageUsingShortViewPath()
     {
-        $factory = $this->getFactory($this->getActionMock());
+        $factory = $this->getFactory($this->getActionStub());
 
         $page = $factory->make('the-page', 'Options')
             ->setView('pages.somepage', true)
@@ -246,7 +245,7 @@ class PageTest extends TestCase
 
     public function testPageParents()
     {
-        $factory = $this->getFactory($this->getActionMock());
+        $factory = $this->getFactory($this->getActionStub());
 
         $page = $factory->make('page', 'Page A')
             ->set();
@@ -262,7 +261,7 @@ class PageTest extends TestCase
 
     public function testPageCanShowSettingsInRest()
     {
-        $factory = $this->getFactory($this->getActionMock());
+        $factory = $this->getFactory($this->getActionStub());
 
         $page = $factory->make('some-page', 'Title');
 

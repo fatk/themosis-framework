@@ -11,7 +11,7 @@ class PluginsLoaderTest extends TestCase
 {
     public function testLoadManifestWhenNoFileExists()
     {
-        $app = $this->createMock('Themosis\Core\Application');
+        $app = $this->createStub('Themosis\Core\Application');
         $filesystem = $this->createMock('Illuminate\Filesystem\Filesystem');
         $loader = new PluginsRepository($app, $filesystem, '', 'plugins.php');
 
@@ -22,7 +22,7 @@ class PluginsLoaderTest extends TestCase
 
     public function testLoadManifestWhenFileExists()
     {
-        $app = $this->createMock('Themosis\Core\Application');
+        $app = $this->createStub('Themosis\Core\Application');
         $filesystem = $this->createMock('Illuminate\Filesystem\Filesystem');
         $loader = new PluginsRepository(
             $app,
@@ -58,8 +58,8 @@ class PluginsLoaderTest extends TestCase
 
     public function testLoaderCanGetPluginHeader()
     {
-        $app = $this->createMock('Themosis\Core\Application');
-        $filesystem = $this->createMock('Illuminate\Filesystem\Filesystem');
+        $app = $this->createStub('Themosis\Core\Application');
+        $filesystem = $this->createStub('Illuminate\Filesystem\Filesystem');
         $loader = new PluginsRepository(
             $app,
             $filesystem,
