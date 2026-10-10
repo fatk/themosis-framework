@@ -2,10 +2,12 @@
 
 namespace Themosis\Tests\Core;
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Contracts\View\Factory;
+use Illuminate\Http\Exceptions\OriginMismatchException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Redirector;
@@ -261,6 +263,77 @@ class ExceptionHandlerTest extends TestCase
         $this->handler->render($request, $validationException);
 
         $this->assertEquals($argumentExpected, $argumentActual);
+    }
+    public function testHandlerDecidesWhenJobRetriesShouldStop()
+    {
+        $this->assertFalse($this->handler->shouldStopRetries(new \RuntimeException()));
+
+        $this->handler->dontRetry(\RuntimeException::class);
+        $this->handler->dontRetryWhen(fn (\Throwable $e) => $e->getMessage() === 'fatal');
+
+        $this->assertTrue($this->handler->shouldStopRetries(new \UnexpectedValueException()));
+        $this->assertTrue($this->handler->shouldStopRetries(new \LogicException('fatal')));
+        $this->assertFalse($this->handler->shouldStopRetries(new \LogicException('transient')));
+    }
+
+    public function testHandlerKnowsWhichExceptionIsBeingReported()
+    {
+        $exception = new \RuntimeException('Being reported');
+        $reporting = null;
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('log')
+            ->willReturnCallback(function () use (&$reporting, $exception) {
+                $reporting = $this->handler->isReporting($exception);
+            });
+        $this->container->instance(LoggerInterface::class, $logger);
+
+        $this->handler->report($exception);
+
+        $this->assertTrue($reporting);
+        $this->assertFalse($this->handler->isReporting($exception));
+        $this->assertSame([], $this->handler->buildContextForException($exception));
+        $this->assertSame(['exception' => $exception], $this->handler->contextForException($exception));
+    }
+
+    public function testOriginMismatchIsNotReportedAndRendersForbidden()
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->never())->method('log');
+        $this->container->instance(LoggerInterface::class, $logger);
+
+        $this->handler->report(new OriginMismatchException('Origin mismatch.'));
+
+        $this->config->method('get')->willReturn(false);
+
+        $response = $this->handler->render($this->request, new OriginMismatchException('Origin mismatch.'));
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('Origin mismatch.', $response->getContent());
+    }
+
+    public function testUnauthenticatedRequestWithoutRedirectGetsEmpty401()
+    {
+        $response = $this->handler->render(Request::create('/account'), new AuthenticationException());
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('', $response->getContent());
+    }
+
+    public function testUnauthenticatedRequestIsRedirectedToItsTarget()
+    {
+        $redirector = $this->createMock(Redirector::class);
+        $redirector->expects($this->once())
+            ->method('guest')
+            ->with('/login')
+            ->willReturn(new RedirectResponse('/login'));
+        $this->container->instance('redirect', $redirector);
+
+        $response = $this->handler->render(Request::create('/account'), new AuthenticationException('Unauthenticated.', [], '/login'));
+
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame('/login', $response->headers->get('Location'));
     }
 }
 

@@ -12,6 +12,7 @@ use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Exceptions\OriginMismatchException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -95,10 +96,32 @@ class Handler implements ExceptionHandler
         HttpException::class,
         HttpResponseException::class,
         ModelNotFoundException::class,
+        OriginMismatchException::class,
         SuspiciousOperationException::class,
         TokenMismatchException::class,
         ValidationException::class,
     ];
+
+    /**
+     * A list of the exception types that should stop job retries.
+     *
+     * @var array<int, class-string<\Throwable>>
+     */
+    protected $dontRetry = [];
+
+    /**
+     * The callbacks that inspect exceptions to determine if they should stop job retries.
+     *
+     * @var array
+     */
+    protected $dontRetryCallbacks = [];
+
+    /**
+     * The exception currently being reported.
+     *
+     * @var \Throwable|null
+     */
+    protected ?Throwable $currentlyReporting = null;
 
     /**
      * A list of inputs that are never flashed for validation exceptions.
@@ -214,6 +237,52 @@ class Handler implements ExceptionHandler
     }
 
     /**
+     * Indicate that the given exception type(s) should stop job retries.
+     *
+     * @param array|string $exceptions
+     *
+     * @return $this
+     */
+    public function dontRetry(array|string $exceptions)
+    {
+        $this->dontRetry = array_values(array_unique(array_merge($this->dontRetry, Arr::wrap($exceptions))));
+
+        return $this;
+    }
+
+    /**
+     * Register a callback to determine if an exception should stop job retries.
+     *
+     * @param callable(\Throwable): bool $dontRetryWhen
+     *
+     * @return $this
+     */
+    public function dontRetryWhen(callable $dontRetryWhen)
+    {
+        $this->dontRetryCallbacks[] = $dontRetryWhen instanceof Closure
+            ? $dontRetryWhen
+            : Closure::fromCallable($dontRetryWhen);
+
+        return $this;
+    }
+
+    /**
+     * Determine if the exception should stop job retries (called by the queue worker).
+     *
+     * @param \Throwable $e
+     *
+     * @return bool
+     */
+    public function shouldStopRetries(Throwable $e)
+    {
+        if (! is_null(Arr::first($this->dontRetry, fn ($type) => $e instanceof $type))) {
+            return true;
+        }
+
+        return array_any($this->dontRetryCallbacks, fn ($callback) => $callback($e) === true);
+    }
+
+    /**
      * Set the log level for the given exception type.
      *
      * @param class-string<\Throwable> $type
@@ -279,17 +348,67 @@ class Handler implements ExceptionHandler
             throw $e;
         }
 
-        $logger->log(
-            $this->mapLogLevel($e),
-            $e->getMessage(),
-            array_merge(
-                $this->exceptionContext($e),
-                $this->context(),
-                [
-                    'exception' => $e,
-                ],
-            ),
+        $originallyReporting = $this->currentlyReporting;
+
+        $this->currentlyReporting = $e;
+
+        try {
+            $logger->log($this->mapLogLevel($e), $e->getMessage(), $this->buildExceptionContext($e));
+        } finally {
+            $this->currentlyReporting = $originallyReporting;
+        }
+    }
+
+    /**
+     * Determine if the given exception is being reported.
+     *
+     * @param \Throwable $e
+     *
+     * @return bool
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        return $this->currentlyReporting === $e;
+    }
+
+    /**
+     * Create the context array for logging the given exception.
+     *
+     * @param \Throwable $e
+     *
+     * @return array
+     */
+    public function contextForException(Throwable $e)
+    {
+        return $this->buildExceptionContext($e);
+    }
+
+    /**
+     * Create the full log context for the given exception.
+     *
+     * @param \Throwable $e
+     *
+     * @return array
+     */
+    protected function buildExceptionContext(Throwable $e)
+    {
+        return array_merge(
+            $this->buildContextForException($e),
+            $this->context(),
+            ['exception' => $e],
         );
+    }
+
+    /**
+     * Create the exception's own context (used by the JSON log formatter).
+     *
+     * @param \Throwable $e
+     *
+     * @return array
+     */
+    public function buildContextForException(Throwable $e)
+    {
+        return $this->exceptionContext($e);
     }
 
     /**
@@ -411,6 +530,8 @@ class Handler implements ExceptionHandler
             $e = new NotFoundHttpException($e->getMessage(), $e);
         } elseif ($e instanceof AuthorizationException) {
             $e = new AccessDeniedHttpException($e->getMessage(), $e);
+        } elseif ($e instanceof OriginMismatchException) {
+            $e = new HttpException(403, $e->getMessage(), $e);
         } elseif ($e instanceof TokenMismatchException) {
             $e = new HttpException(419, $e->getMessage(), $e);
         } elseif ($e instanceof SuspiciousOperationException) {
@@ -432,9 +553,17 @@ class Handler implements ExceptionHandler
      */
     protected function unauthenticated($request, AuthenticationException $e)
     {
-        return $request->expectsJson()
-            ? response()->json(['message' => $e->getMessage()], 401)
-            : redirect()->guest($e->redirectTo() ?? route('login'));
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $e->getMessage()], 401);
+        }
+
+        $redirectTo = $e->redirectTo($request);
+
+        if (! $redirectTo) {
+            return response()->noContent(401);
+        }
+
+        return redirect()->guest($redirectTo);
     }
 
     /**
