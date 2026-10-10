@@ -125,7 +125,10 @@ class ExceptionHandler
         }
 
         if ($options['trace']) {
-            $logger->warning((string) new ErrorException($message, 0, $level, $file, $line));
+            // Laravel 13 format: the exception goes in the context, so formatters add the stack trace.
+            $logger->warning($message, [
+                'exception' => new ErrorException($message, 0, $level, $file, $line),
+            ]);
 
             return;
         }
