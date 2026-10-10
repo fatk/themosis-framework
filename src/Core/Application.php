@@ -347,7 +347,7 @@ class Application extends Container implements
                 \Illuminate\Contracts\Translation\Translator::class,
             ],
             'twig' => [
-                \Twig_Environment::class,
+                \Twig\Environment::class,
             ],
             'url' => [
                 \Illuminate\Routing\UrlGenerator::class,

@@ -93,6 +93,16 @@ class ApplicationContractTest extends TestCase
         rmdir($dir);
     }
 
+    public function testTwigEnvironmentIsAnAliasOfTheTwigBinding()
+    {
+        $app = new Application();
+        $twig = new \Twig\Environment(new \Twig\Loader\ArrayLoader());
+        $app->instance('twig', $twig);
+
+        $this->assertSame('twig', $app->getAlias(\Twig\Environment::class));
+        $this->assertSame($twig, $app->make(\Twig\Environment::class));
+    }
+
     public function testTerminatingCallbacksRunWhenTheApplicationTerminates()
     {
         $app = new Application();

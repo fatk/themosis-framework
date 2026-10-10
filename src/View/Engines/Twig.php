@@ -9,7 +9,7 @@ use Twig\Environment;
 class Twig implements Engine
 {
     /**
-     * @var \Twig_Environment
+     * @var Environment
      */
     protected $twig;
 

@@ -41,7 +41,7 @@ class WordPress extends AbstractExtension implements GlobalsInterface
      * Register a list of WordPress functions for use
      * inside Twig templates.
      *
-     * @return array|\Twig_Function[]
+     * @return array|\Twig\TwigFunction[]
      */
     public function getFunctions()
     {
@@ -114,7 +114,7 @@ class WordPress extends AbstractExtension implements GlobalsInterface
      * Register a list of WordPress filters for use
      * inside Twig templates.
      *
-     * @return array|\Twig_Filter[]
+     * @return array|\Twig\TwigFilter[]
      */
     public function getFilters()
     {
