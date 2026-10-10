@@ -103,6 +103,36 @@ class ApplicationContractTest extends TestCase
         $this->assertSame($twig, $app->make(\Twig\Environment::class));
     }
 
+    public function testEnvironmentHelpersUsedByLaravelComponents()
+    {
+        $app = new Application(realpath(__DIR__ . '/../'));
+
+        $app['env'] = 'production';
+        $this->assertTrue($app->isProduction());
+        $this->assertFalse($app->isLocal());
+
+        $app['env'] = 'local';
+        $this->assertTrue($app->isLocal());
+        $this->assertFalse($app->isProduction());
+
+        $this->assertSame($app->bootstrapPath('providers.php'), $app->getBootstrapProvidersPath());
+    }
+
+    public function testRunningConsoleCommand()
+    {
+        $app = new Application();
+        $argv = $_SERVER['argv'] ?? null;
+        $_SERVER['argv'] = ['artisan', 'route:cache'];
+
+        try {
+            $this->assertTrue($app->runningConsoleCommand('route:cache'));
+            $this->assertTrue($app->runningConsoleCommand(['config:cache', 'route:cache']));
+            $this->assertFalse($app->runningConsoleCommand('view:cache'));
+        } finally {
+            $_SERVER['argv'] = $argv;
+        }
+    }
+
     public function testTerminatingCallbacksRunWhenTheApplicationTerminates()
     {
         $app = new Application();

@@ -739,6 +739,26 @@ class Application extends Container implements
     }
 
     /**
+     * Determine if the application is in the local environment.
+     *
+     * @return bool
+     */
+    public function isLocal()
+    {
+        return $this['env'] === 'local';
+    }
+
+    /**
+     * Determine if the application is in the production environment.
+     *
+     * @return bool
+     */
+    public function isProduction()
+    {
+        return $this['env'] === 'production';
+    }
+
+    /**
      * Determine if we are running in the console.
      *
      * @return bool
@@ -746,6 +766,25 @@ class Application extends Container implements
     public function runningInConsole()
     {
         return php_sapi_name() == 'cli' || php_sapi_name() == 'phpdbg';
+    }
+
+    /**
+     * Determine if the application is running any of the given console commands.
+     *
+     * @param string|array ...$commands
+     *
+     * @return bool
+     */
+    public function runningConsoleCommand(...$commands)
+    {
+        if (! $this->runningInConsole()) {
+            return false;
+        }
+
+        return in_array(
+            $_SERVER['argv'][1] ?? null,
+            is_array($commands[0]) ? $commands[0] : $commands,
+        );
     }
 
     /**
@@ -941,6 +980,16 @@ class Application extends Container implements
         if ($this->isBooted()) {
             $this->fireAppCallbacks([$callback]);
         }
+    }
+
+    /**
+     * Get the path to the service provider list in the bootstrap directory.
+     *
+     * @return string
+     */
+    public function getBootstrapProvidersPath()
+    {
+        return $this->bootstrapPath('providers.php');
     }
 
     /**
@@ -1581,6 +1630,16 @@ class Application extends Container implements
         $this['config']->set('app.locale', $locale);
         $this['translator']->setLocale($locale);
         $this['events']->dispatch(new LocaleUpdated($locale));
+    }
+
+    /**
+     * Get the current application locale.
+     *
+     * @return string
+     */
+    public function currentLocale()
+    {
+        return $this->getLocale();
     }
 
     /**
