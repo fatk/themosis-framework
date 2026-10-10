@@ -6,18 +6,20 @@ trait Dispatchable
 {
     /**
      * Dispatch the event with the given arguments.
+     *
+     * @param  mixed  ...$arguments
+     * @return mixed
      */
-    public static function dispatch()
+    public static function dispatch(...$arguments)
     {
-        return event(new static(...func_get_args()));
+        return event(new static(...$arguments));
     }
 
     /**
      * Dispatch the event with the given arguments if the given truth test passes.
      *
-     * @param bool  $boolean
-     * @param mixed ...$arguments
-     *
+     * @param  bool  $boolean
+     * @param  mixed  ...$arguments
      * @return mixed
      */
     public static function dispatchIf($boolean, ...$arguments)
@@ -30,9 +32,8 @@ trait Dispatchable
     /**
      * Dispatch the event with the given arguments unless the given truth test passes.
      *
-     * @param bool  $boolean
-     * @param mixed ...$arguments
-     *
+     * @param  bool  $boolean
+     * @param  mixed  ...$arguments
      * @return mixed
      */
     public static function dispatchUnless($boolean, ...$arguments)
@@ -45,10 +46,11 @@ trait Dispatchable
     /**
      * Broadcast the event with the given arguments.
      *
+     * @param  mixed  ...$arguments
      * @return \Illuminate\Broadcasting\PendingBroadcast
      */
-    public static function broadcast()
+    public static function broadcast(...$arguments)
     {
-        return broadcast(new static(...func_get_args()));
+        return broadcast(new static(...$arguments));
     }
 }
