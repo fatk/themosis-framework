@@ -73,7 +73,7 @@ function themosis_http_fixture_command(string $command): array
         }
 
         foreach ($state['users'] as $role => $user) {
-            $result['users'][$role] = ['id' => $user['id'], 'meta' => array_intersect_key(get_user_meta($user['id']), array_flip(['th_profile_note', 'th_profile_flag', 'th_profile_choices']))];
+            $result['users'][$role] = ['id' => $user['id'], 'meta' => array_intersect_key(get_user_meta($user['id']), array_flip(['th_profile_note', 'th_profile_flag', 'th_profile_choices', 'th_profile_zero_text', 'th_profile_zero_number', 'th_profile_zero_integer', 'th_profile_zero_choice']))];
         }
         foreach ($state['terms'] ?? [] as $id) {
             $result['terms'][$id] = ['meta' => get_term_meta($id)];
@@ -108,6 +108,10 @@ add_action('init', function () {
         $fields->add(\Themosis\Support\Facades\Field::text($prefix . '_note', ['label' => 'Regression note', 'rules' => 'required']))
             ->add(\Themosis\Support\Facades\Field::checkbox($prefix . '_flag', ['label' => 'Regression flag']))
             ->add(\Themosis\Support\Facades\Field::choice($prefix . '_choices', ['label' => 'Regression choices', 'multiple' => true, 'expanded' => true, 'choices' => ['Choice A' => 'a', 'Choice B' => 'b']]))
+            ->add(\Themosis\Support\Facades\Field::text($prefix . '_zero_text', ['label' => 'Zero text']))
+            ->add(\Themosis\Support\Facades\Field::number($prefix . '_zero_number', ['label' => 'Zero number']))
+            ->add(\Themosis\Support\Facades\Field::integer($prefix . '_zero_integer', ['label' => 'Zero integer']))
+            ->add(\Themosis\Support\Facades\Field::choice($prefix . '_zero_choice', ['label' => 'Zero choice', 'choices' => ['Zero' => 0, 'Seven' => 7]]))
             ->set();
     }
     \Themosis\Support\Facades\Page::make('themosis_regression_page', 'Themosis regression page')
@@ -124,6 +128,13 @@ add_action('init', function () {
     \Themosis\Support\Facades\Metabox::make('themosis_regression_private')
         ->setTitle('Themosis regression private')->setCapability('manage_options')
         ->add(\Themosis\Support\Facades\Field::text('secret'))->set();
+    \Themosis\Support\Facades\Metabox::make('themosis_regression_zero')
+        ->setTitle('Themosis regression zero')
+        ->add(\Themosis\Support\Facades\Field::text('zero_text'))
+        ->add(\Themosis\Support\Facades\Field::number('zero_number'))
+        ->add(\Themosis\Support\Facades\Field::integer('zero_integer'))
+        ->add(\Themosis\Support\Facades\Field::choice('zero_choice', ['choices' => ['Zero' => 0, 'Seven' => 7]]))
+        ->set();
 }, 5);
 
 if (PHP_SAPI === 'cli' && ($command = getenv('THEMOSIS_HTTP_FIXTURE'))) {

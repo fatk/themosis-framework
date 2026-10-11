@@ -70,3 +70,11 @@ Add-user and add-category forms also emit field markers. Markers such as
 `_themosis_fields[th_profile_flag]=1` identify submitted controls and do not
 replace WordPress permissions or nonces. Custom forms may send explicit false
 or an empty array without markers; ordinary omitted fields retain metadata.
+
+The same owned fixture exposes zero regression fields for text, number, integer
+and single choice (valid options `0` and `7`). The metabox ID is
+`themosis_regression_zero`, with `th_zero_text`, `th_zero_number`,
+`th_zero_integer`, and `th_zero_choice`. Native user/category forms use
+`th_profile_zero_*` and `th_term_zero_*`. Submit `0`, reload, and verify the keys
+exist with value `"0"` in `inspect`; replace with `7` and verify the update.
+Empty scalar controls intentionally remove their metadata keys.

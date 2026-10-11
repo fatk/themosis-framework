@@ -245,7 +245,7 @@ class ChoiceType extends BaseType implements
     {
         $value = get_post_meta($post_id, $this->getName(), ! $this->getOption('multiple', false));
 
-        if (! empty($value)) {
+        if (metadata_exists('post', $post_id, $this->getName())) {
             $this->setValue($value);
         }
     }
@@ -260,9 +260,9 @@ class ChoiceType extends BaseType implements
     {
         $previous = get_post_meta($post_id, $this->getName(), true);
 
-        if (is_null($value) || empty($value)) {
+        if (is_null($value) || '' === $value || false === $value || [] === $value) {
             delete_post_meta($post_id, $this->getName());
-        } elseif (empty($previous)) {
+        } elseif (! metadata_exists('post', $post_id, $this->getName())) {
             add_post_meta($post_id, $this->getName(), $value, true);
         } else {
             update_post_meta($post_id, $this->getName(), $value, $previous);
@@ -321,9 +321,9 @@ class ChoiceType extends BaseType implements
     {
         $previous = get_term_meta($term_id, $this->getName(), true);
 
-        if (is_null($value) || empty($value)) {
+        if (is_null($value) || '' === $value || false === $value || [] === $value) {
             delete_term_meta($term_id, $this->getName());
-        } elseif (empty($previous)) {
+        } elseif (! metadata_exists('term', $term_id, $this->getName())) {
             add_term_meta($term_id, $this->getName(), $value, true);
         } else {
             update_term_meta($term_id, $this->getName(), $value, $previous);
@@ -364,7 +364,7 @@ class ChoiceType extends BaseType implements
     {
         $value = get_term_meta($term_id, $this->getName(), ! $this->getOption('multiple', false));
 
-        if (! empty($value)) {
+        if (metadata_exists('term', $term_id, $this->getName())) {
             $this->setValue($value);
         }
     }
@@ -378,7 +378,7 @@ class ChoiceType extends BaseType implements
     {
         $value = get_user_meta($user_id, $this->getName(), ! $this->getOption('multiple', false));
 
-        if (! empty($value)) {
+        if (metadata_exists('user', $user_id, $this->getName())) {
             $this->setValue($value);
         }
     }
@@ -410,9 +410,9 @@ class ChoiceType extends BaseType implements
     {
         $previous = get_user_meta($user_id, $this->getName(), true);
 
-        if (is_null($value) || empty($value)) {
+        if (is_null($value) || '' === $value || false === $value || [] === $value) {
             delete_user_meta($user_id, $this->getName());
-        } elseif (empty($previous)) {
+        } elseif (! metadata_exists('user', $user_id, $this->getName())) {
             add_user_meta($user_id, $this->getName(), $value, true);
         } else {
             update_user_meta($user_id, $this->getName(), $value, $previous);

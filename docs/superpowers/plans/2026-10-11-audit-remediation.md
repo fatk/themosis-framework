@@ -2,8 +2,9 @@
 
 ## Authorized scope and boundaries
 
-Implement T1–T4 only: SEC-01, capability/method checks from SEC-02,
-DATA-01 and DATA-04, with repository-owned WordPress integration coverage.
+The first tranche implemented T1–T4: SEC-01, capability/method checks from
+SEC-02, DATA-01 and DATA-04, with repository-owned WordPress integration
+coverage. The user subsequently authorized Phase 2, T5–T7, in this conversation.
 Save valid submitted metabox fields; preserve invalid and omitted fields.
 Explicit empty/null values clear only when validation permits them. Preserve
 nonce-free callers: mandatory nonce enforcement remains deferred and SEC-02
@@ -108,13 +109,53 @@ requests, partial forms, invalid fields, marked control clears, create/update,
 unknown markers. Native forms and metadata rereads verify behavior.
 Commit: Fix: Preserve custom metadata during unrelated user and term updates.
 
-## Deferred disposition (not authorized in this tranche)
+## Phase 2 — remaining metadata contracts (authorized)
+
+### T5 — DATA-02: preserve zero-valued metadata
+
+Modify src/Forms/Fields/Types/TextType.php, NumberType.php, IntegerType.php,
+ChoiceType.php and src/Forms/Transformers/NumberToLocalizedStringTransformer.php.
+Replace scalar truthiness checks with explicit empty-value handling; use
+metadata existence for create/update and loading zero. Preserve multiple-choice
+clear behavior. Add tests/Integration/WordPress/MetadataValueTest.php and extend
+tests/Forms/FieldsTest.php. Cover 24 post/user/term zero cases, create/update/read,
+locales/precision, valid zero choice and intentional empty controls. Run
+./vendor/bin/phpunit tests/Forms/FieldsTest.php and audit_wpunit --filter
+MetadataValueTest. Zero keys must exist and roundtrip; permitted clears work.
+Commit: Fix: Preserve zero-valued metadata.
+
+### T6 — DATA-03: preserve raw metadata strings
+
+Modify src/Forms/Fields/Types/TextType.php. Keep raw internal strings and apply
+wp_slash() exactly once to metadata write values. Preserve retrieved
+previous-value comparison. Do not guess whether strings are already slashed
+or globally unslash JSON requests. Add integration MetadataEscapingTest.php:
+post/user/term create/update, inherited text fields, JSON with escaped quotes,
+literal backslashes, decoded JSON HTTP requests and native WordPress forms.
+Verify the native form request boundary before adapter normalization. Run
+audit_wpunit --filter MetadataEscapingTest. Require byte-for-byte rereads and
+valid JSON. Commit: Fix: Preserve raw metadata strings at WordPress write boundaries.
+
+### T7 — DATA-05: validate supplied Page setting values
+
+Modify src/Page/Page.php. Bind registered sanitizers to their specific field,
+validate the supplied value under that field name and remove registration-order
+and global-POST dependence. Retain stored values on actual validation failure.
+Add integration PageSettingsSanitizationTest.php and extend tests/Page/PageTest.php.
+Cover empty/conflicting POST, out-of-order/repeated sanitization, programmatic
+update_option, new/existing options, valid/invalid input and ordinary forms;
+exercise REST when explicitly enabled. Run ./vendor/bin/phpunit tests/Page/PageTest.php
+and audit_wpunit --filter PageSettingsSanitizationTest. Valid values persist;
+invalid ones retain old values. Commit: Fix: Validate supplied Page setting values.
+
+The existing regression-first, owned-resource, full-suite, HTTP, explicit
+staging and audit-project shutdown requirements apply to each Phase 2 task.
+Keep all later cache, nonce, lifecycle and other decisions deferred.
+
+## Later disposition (not authorized in Phase 2)
 
 | Task | Finding / intended work |
 | --- | --- |
-| T5 | DATA-02: preserve zero metadata in text/number/integer/choice and numeric transformer; 24 post/user/term cases. |
-| T6 | DATA-03: raw strings internally, wp_slash once at writes; verify native request boundary and byte-exact JSON/backslashes. |
-| T7 | DATA-05: field-bound Page sanitizers validate supplied value independently of POST/registration order. |
 | T8 | CACHE-01/06: forever expiry and genuinely atomic absent-write primitives for each supported backend. |
 | T9 | CACHE-02/03: configuration inventory and explicit isolated-store/namespace migration approval required; never global flush migration. |
 | T10 | CACHE-04: request-local nonpersistent groups for all operations. |

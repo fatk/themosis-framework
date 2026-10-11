@@ -61,9 +61,9 @@ class IntegerType extends BaseType implements
 
         $previous = get_post_meta($post_id, $this->getName(), true);
 
-        if (is_null($this->getValue()) || empty($this->getValue())) {
+        if (is_null($this->getValue()) || '' === $this->getValue()) {
             delete_post_meta($post_id, $this->getName());
-        } elseif (empty($previous)) {
+        } elseif (! metadata_exists('post', $post_id, $this->getName())) {
             add_post_meta($post_id, $this->getName(), $this->getRawValue(), true);
         } else {
             update_post_meta($post_id, $this->getName(), $this->getRawValue(), $previous);
@@ -79,7 +79,7 @@ class IntegerType extends BaseType implements
     {
         $value = get_post_meta($post_id, $this->getName(), true);
 
-        if (! empty($value)) {
+        if (metadata_exists('post', $post_id, $this->getName())) {
             $this->setValue($value);
         }
     }
@@ -96,9 +96,9 @@ class IntegerType extends BaseType implements
 
         $previous = get_term_meta($term_id, $this->getName(), true);
 
-        if (is_null($this->getValue()) || empty($this->getValue())) {
+        if (is_null($this->getValue()) || '' === $this->getValue()) {
             delete_term_meta($term_id, $this->getName());
-        } elseif (empty($previous)) {
+        } elseif (! metadata_exists('term', $term_id, $this->getName())) {
             add_term_meta($term_id, $this->getName(), $this->getRawValue(), true);
         } else {
             update_term_meta($term_id, $this->getName(), $this->getRawValue(), $previous);
@@ -114,7 +114,7 @@ class IntegerType extends BaseType implements
     {
         $value = get_term_meta($term_id, $this->getName(), true);
 
-        if (! empty($value)) {
+        if (metadata_exists('term', $term_id, $this->getName())) {
             $this->setValue($value);
         }
     }
@@ -128,7 +128,7 @@ class IntegerType extends BaseType implements
     {
         $value = get_user_meta($user_id, $this->getName(), true);
 
-        if (! empty($value)) {
+        if (metadata_exists('user', $user_id, $this->getName())) {
             $this->setValue($value);
         }
     }
@@ -145,9 +145,9 @@ class IntegerType extends BaseType implements
 
         $previous = get_user_meta($user_id, $this->getName(), true);
 
-        if (is_null($this->getValue()) || empty($this->getValue())) {
+        if (is_null($this->getValue()) || '' === $this->getValue()) {
             delete_user_meta($user_id, $this->getName());
-        } elseif (empty($previous)) {
+        } elseif (! metadata_exists('user', $user_id, $this->getName())) {
             add_user_meta($user_id, $this->getName(), $this->getRawValue(), true);
         } else {
             update_user_meta($user_id, $this->getName(), $this->getRawValue(), $previous);

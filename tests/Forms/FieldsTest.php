@@ -4,8 +4,10 @@ namespace Themosis\Tests\Forms;
 
 use Illuminate\Config\Repository;
 use League\Fractal\Manager;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Themosis\Core\Application;
+use Themosis\Forms\Fields\Types\NumberType;
 use Themosis\Forms\Resources\Factory;
 use Themosis\Forms\Resources\Transformers\FieldTransformer;
 use Themosis\Tests\Forms\Resources\Transformers\CustomFieldTransformer;
@@ -276,5 +278,62 @@ class FieldsTest extends TestCase
         ]);
 
         $this->assertTrue($email->getOption('show_in_rest'));
+    }
+
+    public static function localizedZeros(): array
+    {
+        $cases = [];
+        foreach (['en_US' => '.', 'pt_BR' => ','] as $locale => $separator) {
+            foreach ([0, 2, 4] as $precision) {
+                foreach ([0, '0'] as $index => $zero) {
+                    $expected = $precision ? '0' . $separator . str_repeat('0', $precision) : '0';
+                    $cases[$locale . '-' . $precision . '-' . $index] = [$locale, $precision, $zero, $expected];
+                }
+            }
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('localizedZeros')]
+    public function testNumberZeroRoundtripsWithLocaleAndPrecision(string $locale, int $precision, $zero, string $expected): void
+    {
+        $number = (new NumberType('zero'))->setLocale($locale)->setOptions(['precision' => $precision]);
+        $number->setValue($zero);
+
+        self::assertSame($expected, $number->getValue());
+        self::assertSame(0.0, $number->getRawValue());
+    }
+
+    public function testNumericEmptyControlsRetainEmptyDisplay(): void
+    {
+        $fields = $this->getFieldsFactory();
+        foreach ([$fields->number('empty'), $fields->integer('empty')] as $field) {
+            foreach ([null, ''] as $empty) {
+                $field->setValue($empty);
+                self::assertSame('', $field->getValue());
+            }
+        }
+    }
+
+    public function testLocalizedNonzeroNumbersRetainPrecision(): void
+    {
+        $number = (new NumberType('amount'))->setLocale('pt_BR')->setOptions(['precision' => 2]);
+        $number->setValue(12.5);
+
+        self::assertSame('12,50', $number->getValue());
+        self::assertSame(12.5, $number->getRawValue());
+    }
+
+    public function testChoiceListIncludesAValidZeroOption(): void
+    {
+        $choice = $this->getFieldsFactory()->choice('zero', ['choices' => ['None' => 0, 'Some' => 7]]);
+
+        self::assertSame(['None' => 0, 'Some' => 7], $choice->getOptions()['choices']);
+        foreach ([0, '0'] as $zero) {
+            $choice->setValue($zero);
+            self::assertSame(0, $choice->getValue());
+            self::assertSame(0, $choice->getRawValue());
+        }
     }
 }
