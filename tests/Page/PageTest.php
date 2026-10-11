@@ -271,4 +271,21 @@ class PageTest extends TestCase
 
         $this->assertTrue($page->isShownInRest());
     }
+
+    public function testPostRoutesRegisterOnlyAuthenticatedActionHooks()
+    {
+        $action = $this->getActionMock();
+        $page = $this->getFactory($action)->make('owned-page', 'Owned page');
+        $hooks = [];
+        $action->expects($this->exactly(5))->method('add')->willReturnCallback(function ($hook, $callback) use (&$hooks) {
+            $hooks[$hook] = $callback;
+        });
+        $page->route('save', function ($argument) {}, 'post');
+        $page->parsePostRoute();
+
+        $this->assertSame('owned-page_save', $page->getAction('save'));
+        $this->assertArrayHasKey('admin_post_owned-page_save', $hooks);
+        $this->assertArrayNotHasKey('admin_post_nopriv_owned-page_save', $hooks);
+        $this->assertIsCallable($hooks['admin_post_owned-page_save']);
+    }
 }

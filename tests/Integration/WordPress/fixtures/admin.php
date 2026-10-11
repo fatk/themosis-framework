@@ -43,6 +43,7 @@ function themosis_http_fixture_command(string $command): array
     if (! $state) { return []; }
     if ($command === 'inspect') {
         $result = ['owner' => $state['owner'], 'posts' => []];
+        $result['page_action_count'] = (int) get_option($state['owner'] . '_page_action_count', 0);
         foreach ($state['posts'] as $role => $id) {
             $result['posts'][$role] = ['id' => $id, 'meta' => get_post_meta($id)];
         }
@@ -59,12 +60,19 @@ function themosis_http_fixture_command(string $command): array
         if ($record && $record->user_login === $user['login'] && str_starts_with($record->user_login, $state['owner'] . '_')) { wp_delete_user($user['id']); }
     }
     delete_option($key);
+    delete_option($state['owner'] . '_page_action_count');
 
     return ['cleaned' => $state['owner']];
 }
 
 add_action('init', function () {
-    if (! get_option('themosis_owned_http_fixture')) { return; }
+    if (! ($state = get_option('themosis_owned_http_fixture'))) { return; }
+    \Themosis\Support\Facades\Page::make('themosis_regression_page', 'Themosis regression page')
+        ->route('save', function ($page) use ($state) {
+            $key = $state['owner'] . '_page_action_count';
+            update_option($key, (int) get_option($key, 0) + 1, false);
+            wp_send_json_success(['count' => (int) get_option($key), 'action' => $page->getAction('save')]);
+        }, 'post');
     \Themosis\Support\Facades\Metabox::make('themosis_regression_public')
         ->setTitle('Themosis regression public')
         ->add(\Themosis\Support\Facades\Field::text('note', ['rules' => ['required', 'min:5']]))

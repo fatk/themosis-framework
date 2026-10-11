@@ -940,6 +940,15 @@ class Page implements PageInterface
 
         foreach ($this->routes['post'] as $action => $callback) {
             $this->action->add('admin_post_' . $action, function () use ($callback) {
+                if (! current_user_can($this->getCapability())) {
+                    wp_die(__('Sorry, you are not allowed to perform this action.'), '', ['response' => 403]);
+                }
+
+                if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+                    header('Allow: POST');
+                    wp_die(__('This action requires a POST request.'), '', ['response' => 405]);
+                }
+
                 $response = $this->handleCallback($callback, [$this], false);
 
                 if ($response instanceof RedirectResponse) {

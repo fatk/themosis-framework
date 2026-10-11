@@ -50,3 +50,10 @@ inspect metadata through the CLI command. Denied GET/PUT must be 404, reveal no
 restricted value and leave DB values unchanged. After checks run cleanup and
 remove only the temporary loader. Credentials exist solely on the isolated
 audit site. Cleanup verifies ownership before deleting each record.
+
+The owned Page action is `themosis_regression_page_save` at `admin-post.php`.
+Subscriber GET/POST return 403; administrator GET returns 405 with `Allow: POST`;
+administrator POST returns JSON and increments `page_action_count` in `inspect`.
+This callback accepts nonce-free POST to verify existing caller compatibility.
+Guest requests retain WordPress's missing unauthenticated-handler response.
+Cleanup also removes the owner-specific counter option.
