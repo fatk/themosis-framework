@@ -41,9 +41,7 @@ class FileViewFinder extends IlluminateFileViewFinder
      */
     public function getPaths()
     {
-        $this->parseOrderedPaths();
-
-        return $this->paths;
+        return $this->parseOrderedPaths();
     }
 
     /**
@@ -67,13 +65,14 @@ class FileViewFinder extends IlluminateFileViewFinder
     }
 
     /**
-     * Parse ordered path locations and prepend
-     * them to default paths.
+     * Merge ordered path locations with default paths.
+     *
+     * @return array
      */
     private function parseOrderedPaths()
     {
         if (empty($this->orderedPaths)) {
-            return;
+            return $this->paths;
         }
 
         /**
@@ -81,12 +80,15 @@ class FileViewFinder extends IlluminateFileViewFinder
          */
         $orderedPaths = $this->orderedPaths;
 
-        uasort($orderedPaths, function ($a, $b) {
-            return $a->getPriority() < $b->getPriority() ? 1 : -1;
+        usort($orderedPaths, function ($a, $b) {
+            return $a->getPriority() <=> $b->getPriority();
         });
 
+        $paths = [];
         foreach ($orderedPaths as $orderedPath) {
-            $this->prependLocation($orderedPath->getPath());
+            $paths[] = $this->resolvePath($orderedPath->getPath());
         }
+
+        return array_merge($paths, $this->paths);
     }
 }
