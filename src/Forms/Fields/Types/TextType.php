@@ -103,9 +103,9 @@ class TextType extends BaseType implements
         if (is_null($this->getValue()) || '' === $this->getValue()) {
             delete_post_meta($post_id, $this->getName());
         } elseif (! metadata_exists('post', $post_id, $this->getName())) {
-            add_post_meta($post_id, $this->getName(), $this->getRawValue(), true);
+            add_post_meta($post_id, $this->getName(), wp_slash($this->getRawValue()), true);
         } else {
-            update_post_meta($post_id, $this->getName(), $this->getRawValue(), $previous);
+            update_post_meta($post_id, $this->getName(), wp_slash($this->getRawValue()), $previous);
         }
     }
 
@@ -124,9 +124,9 @@ class TextType extends BaseType implements
         if (is_null($this->getValue()) || '' === $this->getValue()) {
             delete_term_meta($term_id, $this->getName());
         } elseif (! metadata_exists('term', $term_id, $this->getName())) {
-            add_term_meta($term_id, $this->getName(), $this->getRawValue(), true);
+            add_term_meta($term_id, $this->getName(), wp_slash($this->getRawValue()), true);
         } else {
-            update_term_meta($term_id, $this->getName(), $this->getRawValue(), $previous);
+            update_term_meta($term_id, $this->getName(), wp_slash($this->getRawValue()), $previous);
         }
     }
 
@@ -173,9 +173,9 @@ class TextType extends BaseType implements
         if (is_null($this->getValue()) || '' === $this->getValue()) {
             delete_user_meta($user_id, $this->getName());
         } elseif (! metadata_exists('user', $user_id, $this->getName())) {
-            add_user_meta($user_id, $this->getName(), $this->getRawValue(), true);
+            add_user_meta($user_id, $this->getName(), wp_slash($this->getRawValue()), true);
         } else {
-            update_user_meta($user_id, $this->getName(), $this->getRawValue(), $previous);
+            update_user_meta($user_id, $this->getName(), wp_slash($this->getRawValue()), $previous);
         }
     }
 
