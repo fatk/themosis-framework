@@ -9,6 +9,8 @@ use Themosis\Forms\Contracts\FieldsRepositoryInterface;
 use Themosis\Forms\Contracts\FieldTypeInterface;
 use Themosis\Forms\Fields\Contracts\CanHandleUsers;
 use Themosis\Forms\Fields\Types\BaseType;
+use Themosis\Forms\Fields\Types\CheckboxType;
+use Themosis\Forms\Fields\Types\ChoiceType;
 use Themosis\Hook\IHook;
 use Themosis\Support\Contracts\SectionInterface;
 use Themosis\Support\Section;
@@ -236,9 +238,10 @@ class UserField implements UserFieldContract
      */
     public function save($user_id)
     {
+        $data = $this->getUserData(app('request'));
         $validator = $this->validator->make(
-            $this->getUserData(app('request')),
-            $this->getUserRules(),
+            $data,
+            array_intersect_key($this->getUserRules(), $data),
             $this->getUserMessages(),
             $this->getUserPlaceholders(),
         );
@@ -249,8 +252,12 @@ class UserField implements UserFieldContract
             /** @var FieldTypeInterface|BaseType|CanHandleUsers $field */
             $field->setErrorMessageBag($validator->errors());
 
+            if (! array_key_exists($field->getName(), $validation)) {
+                continue;
+            }
+
             if (method_exists($field, 'userSave')) {
-                $field->userSave($validation[$field->getName()] ?? null, $user_id);
+                $field->userSave($validation[$field->getName()], $user_id);
             } else {
                 throw new UserException('Unable to save [' . $field->getName() . ']. The [userSave] method is missing.');
             }
@@ -267,9 +274,22 @@ class UserField implements UserFieldContract
     protected function getUserData(Request $request)
     {
         $data = [];
+        $submitted = $request->all();
+        $markers = $submitted['_themosis_fields'] ?? [];
+        $markers = is_array($markers) ? $markers : [];
 
         foreach ($this->repository->all() as $field) {
-            $data[$field->getName()] = $request->get($field->getName());
+            $name = $field->getName();
+            if (array_key_exists($name, $submitted)) {
+                $data[$name] = $submitted[$name];
+            } elseif (array_key_exists($name, $markers)) {
+                // Native forms omit unchecked controls. A marker identifies only this field.
+                if ($field instanceof CheckboxType) {
+                    $data[$name] = false;
+                } elseif ($field instanceof ChoiceType && $field->getOption('multiple', false)) {
+                    $data[$name] = [];
+                }
+            }
         }
 
         return $data;

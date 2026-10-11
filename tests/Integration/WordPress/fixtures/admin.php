@@ -22,7 +22,7 @@ function themosis_http_fixture_command(string $command): array
         foreach (['administrator', 'editor', 'author', 'subscriber'] as $role) {
             $login = $owner . '_' . $role;
             $password = wp_generate_password(24, false);
-            $id = wp_insert_user(['user_login' => $login, 'user_pass' => $password, 'role' => $role]);
+            $id = wp_insert_user(['user_login' => $login, 'user_pass' => $password, 'user_email' => $login . '@example.invalid', 'role' => $role]);
             if (is_wp_error($id)) { throw new RuntimeException($id->get_error_message()); }
             $state['users'][$role] = ['id' => $id, 'login' => $login, 'password' => $password];
             update_option($key, $state, false);
@@ -41,6 +41,30 @@ function themosis_http_fixture_command(string $command): array
         return $state;
     }
     if (! $state) { return []; }
+    if ($command === 'setup-fields') {
+        $owner = $state['owner'];
+        foreach ($state['users'] as $user) {
+            update_user_meta($user['id'], 'th_profile_note', 'original-profile-note');
+            update_user_meta($user['id'], 'th_profile_flag', '1');
+            delete_user_meta($user['id'], 'th_profile_choices');
+            add_user_meta($user['id'], 'th_profile_choices', 'a');
+        }
+        if (empty($state['terms'])) {
+            $term = wp_insert_term($owner . '_category', 'category');
+            if (is_wp_error($term)) { throw new RuntimeException($term->get_error_message()); }
+            $state['terms'] = [$term['term_id']];
+            update_term_meta($term['term_id'], '_themosis_http_owner', $owner);
+            update_option($key, $state, false);
+        }
+        foreach ($state['terms'] as $id) {
+            update_term_meta($id, 'th_term_note', 'original-term-note');
+            update_term_meta($id, 'th_term_flag', '1');
+            delete_term_meta($id, 'th_term_choices');
+            add_term_meta($id, 'th_term_choices', 'a');
+        }
+
+        return ['owner' => $owner, 'terms' => $state['terms'], 'users' => array_map(fn ($user) => $user['id'], $state['users'])];
+    }
     if ($command === 'inspect') {
         $result = ['owner' => $state['owner'], 'posts' => []];
         $result['page_action_count'] = (int) get_option($state['owner'] . '_page_action_count', 0);
@@ -48,10 +72,20 @@ function themosis_http_fixture_command(string $command): array
             $result['posts'][$role] = ['id' => $id, 'meta' => get_post_meta($id)];
         }
 
+        foreach ($state['users'] as $role => $user) {
+            $result['users'][$role] = ['id' => $user['id'], 'meta' => array_intersect_key(get_user_meta($user['id']), array_flip(['th_profile_note', 'th_profile_flag', 'th_profile_choices']))];
+        }
+        foreach ($state['terms'] ?? [] as $id) {
+            $result['terms'][$id] = ['meta' => get_term_meta($id)];
+        }
+
         return $result;
     }
     if ($command !== 'cleanup') { throw new RuntimeException('Unknown HTTP fixture command.'); }
     require_once ABSPATH . 'wp-admin/includes/user.php';
+    foreach ($state['terms'] ?? [] as $id) {
+        if (get_term_meta($id, '_themosis_http_owner', true) === $state['owner']) { wp_delete_term($id, 'category'); }
+    }
     foreach ($state['posts'] as $id) {
         if (get_post_meta($id, '_themosis_http_owner', true) === $state['owner']) { wp_delete_post($id, true); }
     }
@@ -67,6 +101,15 @@ function themosis_http_fixture_command(string $command): array
 
 add_action('init', function () {
     if (! ($state = get_option('themosis_owned_http_fixture'))) { return; }
+    $userFields = app('themosis.user.field')->make();
+    $taxonomy = new \Themosis\Taxonomy\Taxonomy('category', ['post'], app(), app('action'));
+    $termFields = app('taxonomy.field')->make($taxonomy);
+    foreach ([[$userFields, 'profile'], [$termFields, 'term']] as [$fields, $prefix]) {
+        $fields->add(\Themosis\Support\Facades\Field::text($prefix . '_note', ['label' => 'Regression note', 'rules' => 'required']))
+            ->add(\Themosis\Support\Facades\Field::checkbox($prefix . '_flag', ['label' => 'Regression flag']))
+            ->add(\Themosis\Support\Facades\Field::choice($prefix . '_choices', ['label' => 'Regression choices', 'multiple' => true, 'expanded' => true, 'choices' => ['Choice A' => 'a', 'Choice B' => 'b']]))
+            ->set();
+    }
     \Themosis\Support\Facades\Page::make('themosis_regression_page', 'Themosis regression page')
         ->route('save', function ($page) use ($state) {
             $key = $state['owner'] . '_page_action_count';

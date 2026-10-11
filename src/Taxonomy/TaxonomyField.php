@@ -7,6 +7,8 @@ use Illuminate\Validation\Validator;
 use Themosis\Forms\Contracts\FieldTypeInterface;
 use Themosis\Forms\Fields\Contracts\CanHandleTerms;
 use Themosis\Forms\Fields\Types\BaseType;
+use Themosis\Forms\Fields\Types\CheckboxType;
+use Themosis\Forms\Fields\Types\ChoiceType;
 use Themosis\Hook\IHook;
 use Themosis\Taxonomy\Contracts\TaxonomyInterface;
 
@@ -149,9 +151,10 @@ class TaxonomyField
     {
         return function ($term_id) {
             /** @var Validator $validator */
+            $data = $this->getTermData(app('request'));
             $validator = $this->validator->make(
-                $this->getTermData(app('request')),
-                $this->getTermRules(),
+                $data,
+                array_intersect_key($this->getTermRules(), $data),
                 $this->getTermMessages(),
                 $this->getTermPlaceholders(),
             );
@@ -162,8 +165,12 @@ class TaxonomyField
                 /** @var FieldTypeInterface|BaseType|CanHandleTerms $field */
                 $field->setErrorMessageBag($validator->errors());
 
+                if (! array_key_exists($field->getName(), $validation)) {
+                    continue;
+                }
+
                 if (method_exists($field, 'termSave')) {
-                    $field->termSave($validation[$field->getName()] ?? null, $term_id);
+                    $field->termSave($validation[$field->getName()], $term_id);
                 } else {
                     throw new TaxonomyException(
                         'Unable to save [' . $field->getName() . ']. The [termSave] method is missing.',
@@ -183,9 +190,22 @@ class TaxonomyField
     protected function getTermData(Request $request)
     {
         $data = [];
+        $submitted = $request->all();
+        $markers = $submitted['_themosis_fields'] ?? [];
+        $markers = is_array($markers) ? $markers : [];
 
         foreach ($this->repository as $field) {
-            $data[$field->getName()] = $request->get($field->getName());
+            $name = $field->getName();
+            if (array_key_exists($name, $submitted)) {
+                $data[$name] = $submitted[$name];
+            } elseif (array_key_exists($name, $markers)) {
+                // Native forms omit unchecked controls. A marker identifies only this field.
+                if ($field instanceof CheckboxType) {
+                    $data[$name] = false;
+                } elseif ($field instanceof ChoiceType && $field->getOption('multiple', false)) {
+                    $data[$name] = [];
+                }
+            }
         }
 
         return $data;

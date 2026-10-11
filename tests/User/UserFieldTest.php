@@ -19,6 +19,20 @@ class UserFieldTest extends TestCase
     use Application;
     use ViewFactory;
 
+    private $previousContainer;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->previousContainer = \Illuminate\Container\Container::getInstance();
+    }
+
+    protected function tearDown(): void
+    {
+        \Illuminate\Container\Container::setInstance($this->previousContainer);
+        parent::tearDown();
+    }
+
     protected function getFieldFactory()
     {
         $app = $this->getApplication();
@@ -73,5 +87,25 @@ class UserFieldTest extends TestCase
 
         $this->assertEquals($text, $user->repository()->getFieldByName('test'));
         $this->assertEquals($email, $user->repository()->getFieldByName('email'));
+    }
+
+    public function testSubmissionCollectionScopesOmittedControlsAndRetainsExplicitValues()
+    {
+        $factory = $this->getFieldFactory();
+        $manager = $this->getUserField()->make()
+            ->add($factory->text('note', ['rules' => 'required']))
+            ->add($factory->checkbox('flag'))
+            ->add($factory->choice('choices', ['multiple' => true, 'choices' => ['A' => 'a']]))
+            ->add($factory->checkbox('untouched'));
+        $collect = new \ReflectionMethod($manager, 'getUserData');
+        $this->assertSame([], $collect->invoke($manager, \Illuminate\Http\Request::create('/', 'POST', [])));
+        $request = \Illuminate\Http\Request::create('/', 'POST', [
+            '_themosis_fields' => ['th_note' => 1, 'th_flag' => 1, 'th_choices' => 1, 'th_unknown' => 1],
+        ]);
+        $this->assertSame(['th_flag' => false, 'th_choices' => []], $collect->invoke($manager, $request));
+        $request = \Illuminate\Http\Request::create('/', 'POST', ['th_note' => null, 'th_flag' => false, 'th_choices' => []]);
+        $this->assertSame(['th_note' => null, 'th_flag' => false, 'th_choices' => []], $collect->invoke($manager, $request));
+        $request = \Illuminate\Http\Request::create('/', 'POST', ['_themosis_fields' => 'invalid']);
+        $this->assertSame([], $collect->invoke($manager, $request));
     }
 }

@@ -45,7 +45,7 @@ docker compose -f /private/tmp/themosis-audit.dEOTfM/compose.yml exec -T \
 Setup returns unique synthetic role credentials and owned author/admin draft
 IDs. HTTP metabox IDs are `themosis_regression_public` (required `th_note` plus
 `th_sibling`) and `themosis_regression_private` (`th_secret`, `manage_options`).
-Use the existing authenticated/CSRF-protected metabox API for browser requests;
+Use the existing authenticated metabox API for browser requests;
 inspect metadata through the CLI command. Denied GET/PUT must be 404, reveal no
 restricted value and leave DB values unchanged. After checks run cleanup and
 remove only the temporary loader. Credentials exist solely on the isolated
@@ -57,3 +57,16 @@ administrator POST returns JSON and increments `page_action_count` in `inspect`.
 This callback accepts nonce-free POST to verify existing caller compatibility.
 Guest requests retain WordPress's missing unauthenticated-handler response.
 Cleanup also removes the owner-specific counter option.
+
+For native user/category form checks, `THEMOSIS_HTTP_FIXTURE=setup-fields`
+extends the existing owned fixture with seeded `th_profile_note`,
+`th_profile_flag`, `th_profile_choices` user metadata and an owned category
+with `th_term_note`, `th_term_flag`, `th_term_choices`. It returns owned IDs
+without credentials. Open `user-edit.php?user_id=<owned user>` and
+`term.php?taxonomy=category&tag_ID=<owned term>&post_type=post`, save selected
+controls, then uncheck the flag and both expanded choices and submit the native
+Update button. `inspect` reports the metadata; cleanup owns the new term too.
+Add-user and add-category forms also emit field markers. Markers such as
+`_themosis_fields[th_profile_flag]=1` identify submitted controls and do not
+replace WordPress permissions or nonces. Custom forms may send explicit false
+or an empty array without markers; ordinary omitted fields retain metadata.
