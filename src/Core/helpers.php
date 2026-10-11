@@ -958,9 +958,7 @@ if (! function_exists('route')) {
      */
     function route($name, $parameters = [], $absolute = true)
     {
-        $path = app('url')->route($name, $parameters, false);
-
-        return ($absolute) ? rootUrl($path) : $path;
+        return app('url')->route($name, $parameters, $absolute);
     }
 }
 

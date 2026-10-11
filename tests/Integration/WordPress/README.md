@@ -98,3 +98,13 @@ public case advertises `public, max-age=300`. The session uses an in-memory owne
 cart and Laravel authentication uses a synthetic request resolver while WordPress
 remains a guest; neither modifies authentication/session lifecycle. No cache
 server disclosure is asserted. The endpoint becomes inactive after owned cleanup.
+
+`MultisiteRouteUrlTest` launches each native multisite control in a separate PHP
+process using `fixtures/route-url.php`. With the normal
+`THEMOSIS_WP_BOOTSTRAP=/srv/fixture-bootstrap.php` environment, it requires the
+retained sibling `/srv/multisite-bootstrap.php` and reads the existing main and
+child sites without creating sites or changing network constants or records.
+These are CLI controls using constructed Illuminate requests, not browser
+multisite navigation. The opt-in owned HTTP fixture also exposes
+`/audit-route-url`; navigate its `generated_url` to verify the named destination
+`/audit-route-destination/12?q=yes` in the actual single-site HTTP application.

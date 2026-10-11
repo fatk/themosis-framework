@@ -104,6 +104,13 @@ function themosis_http_fixture_command(string $command): array
 
 add_action('init', function () {
     if (! ($state = get_option('themosis_owned_http_fixture'))) { return; }
+    app('router')->get('audit-route-url', function () {
+        return new \Illuminate\Http\JsonResponse(['generated_url' => route('audit.generated.destination', ['id' => 12, 'q' => 'yes'])]);
+    })->name('audit.generated.source');
+    app('router')->get('audit-route-destination/{id}', function ($id) {
+        return new \Illuminate\Http\JsonResponse(['destination' => 'owned-named-route', 'id' => $id, 'q' => app('request')->query('q')]);
+    })->name('audit.generated.destination');
+    app('router')->getRoutes()->refreshNameLookups();
     $userFields = app('themosis.user.field')->make();
     $taxonomy = new \Themosis\Taxonomy\Taxonomy('category', ['post'], app(), app('action'));
     $termFields = app('taxonomy.field')->make($taxonomy);
