@@ -61,11 +61,15 @@ class Manager implements MetaboxManagerInterface
         $post_id = $this->authorizeTarget($metabox, $request);
         $data = $this->getMetaboxData(collect($request->get('fields')));
         $fields = $metabox->repository()->all();
+        $submittedFields = array_filter($fields, function ($field) use ($data) {
+            return array_key_exists($field->getName(), $data);
+        });
+        $data = array_intersect_key($data, $this->getMetaboxRules($submittedFields));
 
         /** @var $validator Validator */
         $validator = $this->factory->make(
             $data,
-            $this->getMetaboxRules($fields),
+            $this->getMetaboxRules($submittedFields),
             $this->getMetaboxMessages($fields),
             $this->getMetaboxPlaceholders($fields),
         );
@@ -76,9 +80,16 @@ class Manager implements MetaboxManagerInterface
             /** @var FieldTypeInterface|CanHandleMetabox|BaseType $field */
             $field->setErrorMessageBag($validator->errors());
 
+            if (! array_key_exists($field->getName(), $validatedData)) {
+                if (method_exists($field, 'metaboxGet')) {
+                    $field->metaboxGet($post_id);
+                }
+
+                continue;
+            }
+
             if (method_exists($field, 'metaboxSave')) {
-                $value = isset($validatedData[$field->getName()]) ? $validatedData[$field->getName()] : null;
-                $field->metaboxSave($value, $post_id);
+                $field->metaboxSave($validatedData[$field->getName()], $post_id);
             } else {
                 throw new MetaboxException(
                     'Unable to save [' . $field->getName() . ']. The [metaboxSave] method is missing.',
