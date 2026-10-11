@@ -14,6 +14,29 @@ use Themosis\Route\Router;
 
 class RoutesTest extends TestCase
 {
+    public function testConditionalRoutesRetainHostSchemeAndMethodConstraints()
+    {
+        $route = (new \Themosis\Route\Route(['GET'], 'conditional', ['uses' => 'Page@index', true, 'https']))
+            ->domain('secure.example.com')
+            ->setConditions(['boolval' => 'conditional']);
+
+        $this->assertTrue($route->matches(Request::create('https://secure.example.com/actual-page')));
+        $this->assertFalse($route->matches(Request::create('https://other.example.com/actual-page')));
+        $this->assertFalse($route->matches(Request::create('http://secure.example.com/actual-page')));
+        $this->assertFalse($route->matches(Request::create('https://secure.example.com/actual-page', 'POST')));
+        $this->assertTrue($route->matches(Request::create('https://secure.example.com/actual-page', 'POST'), false));
+        $this->assertFalse($route->matches(Request::create('http://secure.example.com/actual-page', 'POST'), false));
+
+        $httpRoute = (new \Themosis\Route\Route(['GET'], 'conditional', ['uses' => 'Page@index', true, 'http']))
+            ->setConditions(['boolval' => 'conditional']);
+        $this->assertTrue($httpRoute->matches(Request::create('http://secure.example.com/actual-page')));
+        $this->assertFalse($httpRoute->matches(Request::create('https://secure.example.com/actual-page')));
+
+        $falseRoute = (new \Themosis\Route\Route(['GET'], 'conditional', ['uses' => 'Page@index', false]))
+            ->setConditions(['boolval' => 'conditional']);
+        $this->assertFalse($falseRoute->matches(Request::create('https://secure.example.com/actual-page')));
+    }
+
     public function testWordPressHomeRoute()
     {
         $router = $this->getWordPressRouter();

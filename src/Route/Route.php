@@ -4,6 +4,7 @@ namespace Themosis\Route;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Matching\MethodValidator;
+use Illuminate\Routing\Matching\UriValidator;
 use Illuminate\Routing\Route as IlluminateRoute;
 use Illuminate\Support\Arr;
 use Themosis\Route\Matching\ConditionValidator;
@@ -50,23 +51,16 @@ class Route extends IlluminateRoute
     {
         $this->compileRoute();
 
-        // Let's first check if we're working with a WordPress route.
-        // If not a WordPress route, we go through each Illuminate
-        // validators to match the request.
-        if ($this->hasCondition()) {
-            foreach ($this->getWordPressValidators() as $validator) {
-                if (! $validator->matches($this, $request)) {
-                    return false;
-                }
+        $validators = $this->hasCondition()
+            ? array_merge($this->getValidators(), $this->getWordPressValidators())
+            : $this->getValidators();
+
+        foreach ($validators as $validator) {
+            // Conditional routes use the WordPress condition instead of the URI.
+            if ($this->hasCondition() && $validator instanceof UriValidator) {
+                continue;
             }
 
-            return true;
-        }
-
-        // The route is not a WordPress one.
-        // Let's loop through the Illuminate validators in order
-        // to match the request.
-        foreach ($this->getValidators() as $validator) {
             if (! $includingMethod && $validator instanceof MethodValidator) {
                 continue;
             }

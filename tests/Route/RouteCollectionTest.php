@@ -9,6 +9,32 @@ use Themosis\Route\RouteCollection;
 
 class RouteCollectionTest extends TestCase
 {
+    public function testConditionalRouteConstraintsAllowFallbackDispatch()
+    {
+        $routes = new RouteCollection();
+        $routes->add((new Route(['GET'], 'conditional', ['uses' => 'Page@secure', true, 'https']))
+            ->domain('secure.example.com')->setConditions(['boolval' => 'conditional']));
+        $routes->add((new Route(['GET'], 'false-condition', ['uses' => 'Page@false', false]))
+            ->setConditions(['boolval' => 'false-condition']));
+        $routes->add(new Route(['GET'], 'actual-page', ['uses' => 'Page@fallback']));
+        $routes->add(new Route(['POST'], 'actual-page', ['uses' => 'Page@post']));
+
+        $this->assertSame('Page@secure', $routes->match(Request::create('https://secure.example.com/actual-page'))->getAction('uses'));
+        $this->assertSame('Page@fallback', $routes->match(Request::create('https://other.example.com/actual-page'))->getAction('uses'));
+        $this->assertSame('Page@fallback', $routes->match(Request::create('http://secure.example.com/actual-page'))->getAction('uses'));
+        $this->assertSame('Page@post', $routes->match(Request::create('https://secure.example.com/actual-page', 'POST'))->getAction('uses'));
+    }
+
+    public function testGetOnlyConditionalRouteRejectsPostDispatch()
+    {
+        $routes = new RouteCollection();
+        $routes->add((new Route(['GET'], 'conditional', ['uses' => 'Page@index', true, 'https']))
+            ->domain('secure.example.com')->setConditions(['boolval' => 'conditional']));
+
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException::class);
+        $routes->match(Request::create('https://secure.example.com/actual-page', 'POST'));
+    }
+
     public function testDomainRoutesMatchBeforeRoutesWithoutDomain()
     {
         $routes = new RouteCollection();
