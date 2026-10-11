@@ -62,4 +62,69 @@ class PageSettingsSanitizationTest extends WordPressTestCase
             }
         }
     }
+    public function testLegacyDirectCallsCanRepeatAfterTheInitialSequence(): void
+    {
+        $page = app('page')->make($this->ownership, 'Direct settings')->setPrefix($this->ownership . '_');
+        $first = Field::text('first', ['rules' => 'required']);
+        $second = Field::text('second', ['rules' => 'required']);
+        $page->addSettings('general', [$first, $second]);
+        $errors = $GLOBALS['wp_settings_errors'] ?? [];
+        $_POST = [$first->getName() => 'first-value', $second->getName() => 'second-value'];
+        try {
+            self::assertSame('first-value', $page->sanitizeSetting('first-value'));
+            self::assertSame('second-value', $page->sanitizeSetting('second-value'));
+            self::assertSame('first-value', $page->sanitizeSetting('first-value'));
+            self::assertSame('second-value', $page->sanitizeSetting('second-value'));
+        } finally {
+            $GLOBALS['wp_settings_errors'] = $errors;
+            app()->offsetUnset('page.' . $page->getSlug());
+        }
+    }
+
+    public function testRegisteredOverrideDispatchAndErrorsReplacePrematureSuccess(): void
+    {
+        require_once ABSPATH . 'wp-admin/includes/template.php';
+        $original = app('page')->make($this->ownership, 'Override settings');
+        $arguments = [];
+        foreach (['action', 'filter', 'ui', 'repository', 'validator'] as $property) {
+            $arguments[] = (new \ReflectionProperty($original, $property))->getValue($original);
+        }
+        $page = new class (...$arguments) extends \Themosis\Page\Page {
+            public array $values = [];
+
+            public function sanitizeSetting($value)
+            {
+                $this->values[] = $value;
+
+                return parent::sanitizeSetting($value);
+            }
+        };
+        $page->setSlug($this->ownership)->setPrefix($this->ownership . '_');
+        $first = Field::text('first', ['rules' => 'required']);
+        $second = Field::text('second', ['rules' => 'required']);
+        $page->addSettings('general', [$first, $second]);
+        $globals = [];
+        foreach (['wp_registered_settings', 'wp_settings_fields', 'new_allowed_options', 'wp_settings_errors'] as $name) {
+            $globals[$name] = [array_key_exists($name, $GLOBALS), $GLOBALS[$name] ?? null];
+        }
+        try {
+            $page->configureSettings();
+            $_POST = [];
+            $secondCallback = $GLOBALS['wp_registered_settings'][$second->getName()]['sanitize_callback'];
+            $firstCallback = $GLOBALS['wp_registered_settings'][$first->getName()]['sanitize_callback'];
+            self::assertSame('second-value', $secondCallback('second-value'));
+            self::assertSame(['second-value'], $page->values);
+            self::assertCount(1, array_filter(get_settings_errors($page->getSlug()), fn ($error) => $error['type'] === 'updated'));
+            self::assertSame('', $firstCallback(''));
+            self::assertSame(['second-value', ''], $page->values);
+            self::assertCount(0, array_filter(get_settings_errors($page->getSlug()), fn ($error) => $error['type'] === 'updated'));
+            self::assertCount(1, array_filter(get_settings_errors($page->getSlug()), fn ($error) => $error['type'] === 'error'));
+        } finally {
+            foreach ([$first, $second] as $field) { unregister_setting($page->getSlug(), $field->getName()); }
+            foreach ($globals as $name => [$exists, $value]) {
+                if ($exists) { $GLOBALS[$name] = $value; } else { unset($GLOBALS[$name]); }
+            }
+            app()->offsetUnset('page.' . $page->getSlug());
+        }
+    }
 }

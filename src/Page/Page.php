@@ -706,11 +706,23 @@ class Page implements PageInterface
         $setting = $this->sanitizingSetting;
 
         if (is_null($setting)) {
-            // Retain the legacy direct-call sequence without guessing from values.
+            // Preserve the legacy unbound direct-call sequence and repeat fallback.
             $setting = $this->repository()->getSettings()->collapse()->values()->get($this->offset++);
 
             if (is_null($setting)) {
-                return null;
+                if (empty($value)) {
+                    return null;
+                }
+
+                // Only legacy direct calls infer identity from an exact POST match.
+                $settingName = collect($_POST)->search($value, true);
+
+                if (! $settingName) {
+                    return null;
+                }
+
+                $setting = $this->repository()->getSettingByName($settingName);
+                $this->errors++;
             }
         }
 
@@ -771,6 +783,14 @@ class Page implements PageInterface
      */
     private function addSettingsErrorMessage(string $slug, string $name, string $message)
     {
+        // A later field may fail after an out-of-order callback reported success.
+        $GLOBALS['wp_settings_errors'] = array_values(array_filter(
+            $GLOBALS['wp_settings_errors'] ?? [],
+            function ($error) use ($slug) {
+                return ! ($error['setting'] === $slug && $error['code'] === 'settings_updated' && $error['type'] === 'updated');
+            },
+        ));
+
         add_settings_error($slug, $name, $message, 'error');
     }
 
