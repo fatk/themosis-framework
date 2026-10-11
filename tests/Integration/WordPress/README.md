@@ -88,3 +88,13 @@ validation errors appear. Cleanup removes only these owner-specific options.
 Programmatic updates, empty/conflicting POST, repeated/out-of-order callbacks,
 new/existing options and explicitly enabled REST settings are covered by
 `PageSettingsSanitizationTest`.
+
+For response privacy acceptance, the active owned fixture exposes
+`https://themosis-audit.local.dev/cms/?themosis_response_policy=<case>`.
+Guest cases are `private`, `no-store`, `no-cache`, `session`, `laravel-auth`, and
+`public`. Inspect the final HTTPS `Cache-Control` header: private controls must
+retain `private`, no-store/no-cache directives must remain, and only the explicit
+public case advertises `public, max-age=300`. The session uses an in-memory owned
+cart and Laravel authentication uses a synthetic request resolver while WordPress
+remains a guest; neither modifies authentication/session lifecycle. No cache
+server disclosure is asserted. The endpoint becomes inactive after owned cleanup.

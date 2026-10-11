@@ -152,7 +152,92 @@ The existing regression-first, owned-resource, full-suite, HTTP, explicit
 staging and audit-project shutdown requirements apply to each Phase 2 task.
 Keep all later cache, nonce, lifecycle and other decisions deferred.
 
-## Later disposition (not authorized in Phase 2)
+## Phase 4 — routing, rendering and editor correctness (authorized)
+
+After Phase 2, the user deferred the entire cache phase and authorized T12–T18.
+Keep working on fix/audit-remediation in this checkout. Phase 3's proposal is
+unapproved and deferred; no cache/store/environment/drop-in changes are included.
+
+### T12 — SEC-03: respect response cache privacy
+
+Modify src/Route/Middleware/WordPressHeaders.php. Remove guest setPublic()
+overriding response policy. Add tests/Route/WordPressHeadersTest.php and
+tests/Integration/WordPress/ResponseHeadersTest.php. Preserve private/no-store/
+no-cache, Laravel-authenticated WordPress guests and personalized guest sessions;
+retain explicit public controls. Run the targeted unit file and audit_wpunit
+--filter ResponseHeadersTest. Chrome confirms final HTTPS response headers.
+No cache-disclosure exploit is asserted. Commit: Fix: Respect explicit response cache privacy.
+
+### T13 — SEC-04: conditional route constraints
+
+Modify src/Route/Route.php; extend tests/Route/RoutesTest.php and
+RouteCollectionTest.php. Conditional routes retain ordinary validators except
+the intentionally bypassed URI validator, plus their condition validator.
+Cover correct/wrong host, HTTP/HTTPS, true/false conditions, fallback and GET/
+POST collection dispatch. Run ./vendor/bin/phpunit --filter
+'(RoutesTest|RouteCollectionTest)'. Host/scheme constraints hold and POST to a
+GET-only route remains MethodNotAllowed. Commit: Fix: Honor conditional route host and scheme constraints.
+
+### T14 — ROUTE-01: configured named route URLs
+
+Modify src/Core/helpers.php. Add tests/Route/RouteUrlTest.php and integration
+MultisiteRouteUrlTest.php. Delegate absolute/relative route generation to the
+configured URL generator. Keep rootUrl()'s documented meaning. Cover root,
+subdirectory/index.php, forced roots, route domains/placeholders, queries,
+absolute=false and retained main/child multisite URLs. Run the targeted unit
+file and audit_wpunit --filter MultisiteRouteUrlTest. Chrome checks actual
+fixture navigation separately from CLI multisite controls.
+Commit: Fix: Preserve named route domains and base paths.
+
+### T15 — VIEW-01: runtime Blade template arguments
+
+Modify src/View/BladeServiceProvider.php; add
+tests/View/BladeTemplateDirectiveTest.php. Compile runtime argument evaluation
+from the original PHP expression rather than splitting commas or executing
+selectors during compilation. Cover compile once/render post and page, static/
+dynamic selector, fallback, inherited variables, multiple/nested data keys and
+quoted commas. Run the targeted unit file. Reused compiled views must select
+current templates and preserve all data. Clear only test-owned compiled views
+for HTTP checks. Commit: Fix: Evaluate Blade template arguments while rendering.
+
+### T16 — VIEW-03: stable ordered view paths
+
+Modify src/View/FileViewFinder.php; extend tests/View/FileViewFinderTest.php.
+Derive a stable ordered merge without repeatedly modifying base paths;
+preserve priority and registration order for ties. Cover repeated path equality/
+count, missing/new views, later locations and no-ordered controls. Run the
+targeted unit file. Commit: Fix: Keep ordered view paths stable.
+
+### T17 — VIEW-02: finder-backed Twig resolution
+
+After T16, modify src/View/ViewServiceProvider.php, Engines/Twig.php and
+src/Core/ThemeManager.php; add src/View/TwigLoader.php, tests/View/TwigLoaderTest.php
+and TwigEngineTest.php. Use finder-backed resolution for top-level views,
+includes and extends, preserving loader compatibility methods used by theme
+registration. Cover duplicate overrides, unique theme files, late locations,
+namespaces, aliases, nested templates and cache keys. Run ./vendor/bin/phpunit
+--filter '(TwigLoaderTest|TwigEngineTest|FileViewFinderTest)'. Finder and renderer
+must select the same source, including after compiled-template reuse.
+Commit: Fix: Resolve Twig views through the framework finder.
+
+### T18 — UI-01: editor Code mode persistence
+
+Modify resources/js/src/components/fields/EditorField.tsx, add
+resources/js/tests/components/editor-field.test.tsx and regenerate only directly
+required dist/js/themosis.core.js. Code textarea changes update serialized
+state; Visual edits synchronize without depending solely on blur. Cover Code
+edit then immediate save, blur/no-blur, transitions with healthy Visual control
+and repeated saves. Install existing locked JS dependencies without upgrades.
+Run yarn test --runInBand resources/js/tests/components/editor-field.test.tsx,
+yarn test --runInBand and yarn production. Chrome verifies saved values via
+API/database and reload. Exclude unrelated generated poststatus output.
+Do not add speculative remount, Gutenberg/classic publish-race or TinyMCE
+initialization changes. Commit: Fix: Persist metabox editor Code mode changes.
+
+Each task retains the regression-first, full-suite, owned-fixture, atomic-commit,
+HTTP verification and final audit-project shutdown requirements below.
+
+## Later disposition and deferred phases
 
 | Task | Finding / intended work |
 | --- | --- |

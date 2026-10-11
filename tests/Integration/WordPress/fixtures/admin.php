@@ -150,3 +150,29 @@ add_action('init', function () {
 if (PHP_SAPI === 'cli' && ($command = getenv('THEMOSIS_HTTP_FIXTURE'))) {
     echo json_encode(themosis_http_fixture_command($command), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
 }
+
+// Owned HTTPS acceptance endpoint; response policy is chosen explicitly by the route.
+add_action('template_redirect', function () {
+    if (! get_option('themosis_owned_http_fixture') || ! isset($_GET['themosis_response_policy'])) { return; }
+    $policies = [
+        'private' => 'private, max-age=60',
+        'no-store' => 'private, no-store, no-cache',
+        'no-cache' => 'no-cache',
+        'public' => 'public, max-age=300',
+        'session' => 'private, no-store',
+        'laravel-auth' => 'private, no-store',
+    ];
+    $case = sanitize_key($_GET['themosis_response_policy']);
+    if (! isset($policies[$case])) { return; }
+    $request = \Illuminate\Http\Request::capture();
+    $request->setRouteResolver(fn () => new \Themosis\Route\Route('GET', 'privacy', fn () => null));
+    if ($case === 'laravel-auth') { $request->setUserResolver(fn () => (object) ['id' => 'owned-fixture']); }
+    if ($case === 'session') {
+        $session = new \Illuminate\Session\Store('owned_privacy_fixture', new \Illuminate\Session\ArraySessionHandler(120));
+        $session->put('cart', ['owned-example']);
+        $request->setLaravelSession($session);
+    }
+    $response = new \Illuminate\Http\Response('Owned response policy: ' . $case, 200, ['Cache-Control' => $policies[$case], 'Content-Type' => 'text/plain']);
+    (new \Themosis\Route\Middleware\WordPressHeaders())->handle($request, fn () => $response)->send();
+    exit;
+}, 0);
