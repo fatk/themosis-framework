@@ -5,6 +5,8 @@ namespace Themosis\Metabox\Controllers;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Themosis\Metabox\Contracts\MetaboxManagerInterface;
 
 class MetaboxApiController
@@ -30,10 +32,16 @@ class MetaboxApiController
     public function show(Request $request, $id)
     {
         $abstract = sprintf('themosis.metabox.%s', $id);
+        if (! app()->bound($abstract)) {
+            throw new NotFoundHttpException();
+        }
 
         try {
             $metabox = $this->manager->getFields(app($abstract), $request);
         } catch (\Exception $e) {
+            if ($e instanceof HttpExceptionInterface || $e instanceof HttpResponseException) {
+                throw $e;
+            }
             throw new HttpResponseException(response()->json([
                 'message' => $e->getMessage(),
                 'errors' => true,
@@ -55,10 +63,16 @@ class MetaboxApiController
     public function update(Request $request, $id)
     {
         $abstract = sprintf('themosis.metabox.%s', $id);
+        if (! app()->bound($abstract)) {
+            throw new NotFoundHttpException();
+        }
 
         try {
             $metabox = $this->manager->saveFields(app($abstract), $request);
         } catch (\Exception $exception) {
+            if ($exception instanceof HttpExceptionInterface || $exception instanceof HttpResponseException) {
+                throw $exception;
+            }
             return response()->json([
                 'message' => $exception->getMessage(),
                 'errors' => true,

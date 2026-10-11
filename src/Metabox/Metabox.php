@@ -612,7 +612,7 @@ class Metabox implements MetaboxInterface
      */
     public function getCapability(): string
     {
-        return $this->capability;
+        return $this->capability ?? '';
     }
 
     /**
@@ -637,7 +637,7 @@ class Metabox implements MetaboxInterface
      */
     public function getTemplate(): array
     {
-        return $this->template;
+        return $this->template ?? [];
     }
 
     /**

@@ -78,6 +78,8 @@ class MetaboxTest extends TestCase
         $this->assertEquals('default', $box->getLayout());
         $this->assertEquals('en_US', $box->getLocale());
         $this->assertEquals('th_', $box->getPrefix());
+        $this->assertSame('', $box->getCapability());
+        $this->assertSame([], $box->getTemplate());
     }
 
     public function testCreateMetaboxWithCustomFields()

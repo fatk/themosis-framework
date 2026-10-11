@@ -11,6 +11,7 @@
     <testsuites>
         <testsuite name="Themosis framework">
             <directory suffix="Test.php">./tests</directory>
+            <exclude>./tests/Integration/WordPress</exclude>
         </testsuite>
     </testsuites>
     <source>
