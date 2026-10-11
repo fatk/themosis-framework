@@ -98,26 +98,11 @@ class BladeServiceProvider extends ServiceProvider
          * As a third argument, you can pass custom data array to the included view.
          */
         Blade::directive('template', function ($expression) {
-            // Get a list of passed arguments.
-            $args = array_map(function ($arg) {
-                return trim($arg, '\/\'\" ()');
-            }, explode(',', $expression));
-
-            // Set the view path.
-            if (isset($args[1])) {
-                if (is_callable($args[1])) {
-                    $args[1] = call_user_func($args[1]);
-                }
-
-                $path = $args[0] . '-' . $args[1];
-            } else {
-                $path = $args[0];
-            }
-
-            // Set the view data if defined.
-            $data = 3 === count($args) ? array_pop($args) : '[]';
-
-            return "<?php if (\$__env->exists('{$path}')) { echo \$__env->make('{$path}', {$data}, \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); } else { echo \$__env->make('{$args[0]}', {$data}, \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); } ?>";
+            // Keep the PHP arguments intact and evaluate them only while rendering.
+            return "<?php echo (static function (\$__templateVariables, \$__templateView, \$__templateSelector = null, \$__templateData = []) use (\$__env) { "
+                . "\$__templatePath = \$__templateSelector === null ? \$__templateView : \$__templateView . '-' . \$__templateSelector; "
+                . "return \$__env->make(\$__env->exists(\$__templatePath) ? \$__templatePath : \$__templateView, \$__templateData, \$__templateVariables)->render(); "
+                . "})(\Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']), {$expression}); ?>";
         });
 
         Blade::directive('wp_footer', function () {

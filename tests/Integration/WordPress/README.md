@@ -108,3 +108,11 @@ These are CLI controls using constructed Illuminate requests, not browser
 multisite navigation. The opt-in owned HTTP fixture also exposes
 `/audit-route-url`; navigate its `generated_url` to verify the named destination
 `/audit-route-destination/12?q=yes` in the actual single-site HTTP application.
+
+The opt-in `fixtures/blade-template.php` control loads after the admin fixture
+from the owned audit mu plugin. `/audit-blade-template?selector=post`, `page`,
+and `missing` reuse one owner-specific `/tmp/<owner>-blade-template.php` file.
+JSON reports its hash and rendered selector, inherited variable, quoted comma
+and nested data values. Call `themosis_owned_template_clear()` with WordPress
+and this fixture loaded to remove only that compiled file before recompilation
+or before removing the existing owner state. No application view cache is cleared.
