@@ -67,6 +67,7 @@ function themosis_http_fixture_command(string $command): array
     }
     if ($command === 'inspect') {
         $result = ['owner' => $state['owner'], 'posts' => []];
+        $result['settings'] = ['note' => get_option($state['owner'] . '_settings_note'), 'count' => get_option($state['owner'] . '_settings_count')];
         $result['page_action_count'] = (int) get_option($state['owner'] . '_page_action_count', 0);
         foreach ($state['posts'] as $role => $id) {
             $result['posts'][$role] = ['id' => $id, 'meta' => get_post_meta($id)];
@@ -95,6 +96,8 @@ function themosis_http_fixture_command(string $command): array
     }
     delete_option($key);
     delete_option($state['owner'] . '_page_action_count');
+    delete_option($state['owner'] . '_settings_note');
+    delete_option($state['owner'] . '_settings_count');
 
     return ['cleaned' => $state['owner']];
 }
@@ -114,6 +117,13 @@ add_action('init', function () {
             ->add(\Themosis\Support\Facades\Field::choice($prefix . '_zero_choice', ['label' => 'Zero choice', 'choices' => ['Zero' => 0, 'Seven' => 7]]))
             ->set();
     }
+    \Themosis\Support\Facades\Page::make('themosis_regression_settings', 'Themosis regression settings')
+        ->setPrefix($state['owner'] . '_settings_')
+        ->addSections([new \Themosis\Support\Section('general', 'Validated settings')])
+        ->addSettings('general', [
+            \Themosis\Support\Facades\Field::text('note', ['label' => 'Validated note', 'rules' => 'required|min:5']),
+            \Themosis\Support\Facades\Field::integer('count', ['label' => 'Validated count', 'rules' => 'required|integer|min:10']),
+        ])->set();
     \Themosis\Support\Facades\Page::make('themosis_regression_page', 'Themosis regression page')
         ->route('save', function ($page) use ($state) {
             $key = $state['owner'] . '_page_action_count';

@@ -288,4 +288,29 @@ class PageTest extends TestCase
         $this->assertArrayNotHasKey('admin_post_nopriv_owned-page_save', $hooks);
         $this->assertIsCallable($hooks['admin_post_owned-page_save']);
     }
+
+    public function testSanitizeSettingRetainsItsOneArgumentOverrideContract()
+    {
+        $method = new \ReflectionMethod(\Themosis\Page\Page::class, 'sanitizeSetting');
+        $this->assertSame(1, $method->getNumberOfParameters());
+        $this->assertSame(1, $method->getNumberOfRequiredParameters());
+    }
+
+    public function testFieldBoundSanitizerUsesSuppliedValueAndFieldTransformer()
+    {
+        $page = $this->getFactory($this->getActionStub())->make('owned-settings', 'Owned settings');
+        $fields = new \Themosis\Field\Factory($this->getApplication(), $this->getViewFactory());
+        $first = $fields->integer('first', ['rules' => 'required|integer|min:10']);
+        $page->addSettings('general', [$first, $fields->text('second')]);
+        $post = $_POST;
+        $_POST = [$first->getName() => 'invalid'];
+
+        try {
+            $method = new \ReflectionMethod($page, 'sanitizeSettingValue');
+            $this->assertSame('12', $method->invoke($page, $first, '12'));
+            $this->assertSame('13', $method->invoke($page, $first, '13'));
+        } finally {
+            $_POST = $post;
+        }
+    }
 }

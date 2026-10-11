@@ -78,3 +78,13 @@ and single choice (valid options `0` and `7`). The metabox ID is
 `th_profile_zero_*` and `th_term_zero_*`. Submit `0`, reload, and verify the keys
 exist with value `"0"` in `inspect`; replace with `7` and verify the update.
 Empty scalar controls intentionally remove their metadata keys.
+
+The owned settings page is `admin.php?page=themosis_regression_settings`. Its
+option names are `<owner>_settings_note` (required, minimum five characters) and
+`<owner>_settings_count` (required integer, minimum ten). Submit valid values
+through the native options.php form, reload and inspect `settings`; then submit
+an empty note and count `2` and verify both stored values remain unchanged and
+validation errors appear. Cleanup removes only these owner-specific options.
+Programmatic updates, empty/conflicting POST, repeated/out-of-order callbacks,
+new/existing options and explicitly enabled REST settings are covered by
+`PageSettingsSanitizationTest`.

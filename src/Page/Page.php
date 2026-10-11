@@ -102,6 +102,18 @@ class Page implements PageInterface
     protected $offset = 0;
 
     /**
+     * Field bound to the currently executing registered sanitizer.
+     *
+     * @var FieldTypeInterface|null
+     */
+    protected $sanitizingSetting;
+
+    /**
+     * @var bool
+     */
+    protected $settingsSuccessAdded = false;
+
+    /**
      * @var array
      */
     protected $routes = [];
@@ -636,7 +648,16 @@ class Page implements PageInterface
                 }
 
                 register_setting($this->getSlug(), $setting->getName(), [
-                    'sanitize_callback' => [$this, 'sanitizeSetting'],
+                    'sanitize_callback' => function ($value) use ($setting) {
+                        $previous = $this->sanitizingSetting;
+                        $this->sanitizingSetting = $setting;
+
+                        try {
+                            return $this->sanitizeSetting($value);
+                        } finally {
+                            $this->sanitizingSetting = $previous;
+                        }
+                    },
                     'default' => $setting->getOption('data', ''),
                     'show_in_rest' => $showInRest,
                     'type' => $setting->getOption('data_type', 'string'),
@@ -682,44 +703,35 @@ class Page implements PageInterface
      */
     public function sanitizeSetting($value)
     {
-        $keys = $this->repository()->getSettings()->collapse()->map(function ($setting) {
-            /** @var FieldTypeInterface $setting */
-            return $setting->getName();
-        });
+        $setting = $this->sanitizingSetting;
 
-        $settingName = $keys->slice($this->offset, 1)->first();
-        $lastSetting = $this->repository()->getSettings()->collapse()->last();
-        $data = collect($_POST);
+        if (is_null($setting)) {
+            // Retain the legacy direct-call sequence without guessing from values.
+            $setting = $this->repository()->getSettings()->collapse()->values()->get($this->offset++);
 
-        if ($this->offset > $keys->count() - 1) {
-            if (empty($value)) {
+            if (is_null($setting)) {
                 return null;
             }
-
-            // Sanitize is called one more time with a valid value.
-            // Let's get the $settingName based on the given value
-            // as we can't rely anymore on the offset.
-            $settingName = $data->search($value, true);
-
-            if (! $settingName) {
-                return null;
-            }
-
-            // Let's add a "fake" error to avoid duplicate success messages.
-            $this->errors++;
         }
 
-        $setting = $this->repository()->getSettingByName($settingName);
+        return $this->sanitizeSettingValue($setting, $value);
+    }
 
+    /**
+     * Validate the supplied value for a specific field, then apply its transformer.
+     *
+     * @param mixed $value
+     *
+     * @return mixed
+     */
+    protected function sanitizeSettingValue(FieldTypeInterface $setting, $value)
+    {
         $validator = $this->validator->make(
-            $data->all(),
+            [$setting->getName() => $value],
             [$setting->getName() => $setting->getOption('rules')],
             $this->getSettingMessages($setting),
             $this->getSettingPlaceholder($setting),
         );
-
-        // Update setting offset.
-        $this->offset++;
 
         /** @var Validator $validator */
         if ($validator->fails()) {
@@ -738,7 +750,10 @@ class Page implements PageInterface
             return get_option($setting->getName());
         }
 
-        if ($settingName === $lastSetting->getName() && ! $this->errors) {
+        $lastSetting = $this->repository()->getSettings()->collapse()->last();
+
+        if ($setting === $lastSetting && ! $this->errors && ! $this->settingsSuccessAdded) {
+            $this->settingsSuccessAdded = true;
             $this->addSettingsSuccessMessage($this->getSlug());
         }
 
