@@ -161,7 +161,22 @@ that could expose plaintext cookies. If incompatibility is discovered only after
 a Fiber is already queued (nonstandard nested dispatch), fail finalization, drain
 queued Fibers for resource release, and suppress all managed cookie publication. Unrelated middleware remains unchanged.
 
-The adapter starts a Fiber invoking the original `handle`. Its supplied `$next`
+Lazy wrappers preserve the installed Pipeline::carry branches exactly. First test
+is_callable on the originally supplied pipe: invoke such a pipe directly and return
+its value without Responsable conversion (including callable objects with handle).
+For a non-callable string, parse parameters and resolve lazily; for a non-callable
+object, retain its identity. Invoke handle when present, otherwise __invoke, with
+the original arguments. Only this non-callable branch converts Responsable via
+its toResponse(container->make(Illuminate\Http\Request::class)), exactly as routing
+handleCarry does. Do not normalize originally supplied closures. The wrapper does
+not catch invocation/conversion exceptions: the surrounding original routing
+Pipeline catches, reports, renders and applies withException. The same invocation
+closure is passed into an eligible adapter, so its final resumed result receives
+that branch's conversion too. Unrelated middleware does not acquire a Response
+return constraint. Callable customized session/cookie objects still undergo the
+compatibility check before invocation; opt-in retains their callable branch.
+
+The adapter starts a Fiber invoking that original invocation closure. Its supplied `$next`
 calls the real downstream continuation, appends the current Fiber to the lifecycle
 queue, then suspends with the provisional response. It returns the final response
 when resumed. The queue is naturally in original response-unwind order: session,
@@ -185,7 +200,9 @@ retains the framework response and emits its non-cookie headers without flushing
 body output. `finish(): Response` is the one terminal operation. Mark finalizing
 before invoking any user/vendor callback. A duplicate or reentrant finish returns
 the current final response without invoking any deferred operation or termination
-again. No failed operation is retried. Record each Fiber as attempted before resume;
+again. Initialize finalResponse to the staged response or a new empty Response before setting
+finalizing, and before snapshot or any callback can reenter. No failed operation
+is retried. Record each Fiber as attempted before resume;
 check it is terminated after resume, then accept its returned Response.
 
 At finish, collect captured body and native status/headers into a real Symfony
@@ -226,6 +243,27 @@ this repair does not extend or renew a lock lease. A request outliving its confi
 lease cannot claim exclusive access for that extra time. Session regeneration keeps
 the originally acquired lock key, exactly as upstream middleware does.
 
+Every started Fiber is owned before start, separately from the ordered deferred
+queue. On unexpected initial suspension or suspension after its single normal
+resume, mark finalization failed and perform exactly one cancellation injection:
+Fiber::throw(new LogicException('Deferred admin middleware cancelled.')). Catch
+and report cancellation/cleanup errors, then inspect isTerminated. This injection
+is resource cleanup, never a normal resume, retry or second call to handle/save.
+A contract-compliant try/finally runs once. If custom code catches cancellation and
+suspends again, do not inject or resume again: retain the Fiber in a quarantined
+owned list until request teardown, report unresolved cleanup, suppress managed
+cookies, and continue draining other queued Fibers and attempting termination.
+There is no guarantee that arbitrary custom code releases resources before
+teardown, or refrains from writes while catching cancellation. Opt-in requires
+propagating cancellation without suspending or repeating persistence; release-on-
+error and one-save guarantees apply to installed middleware and compliant opt-ins.
+Never claim quarantine as successful cleanup; do not add manual lock release.
+
+Snapshot and header-preparation failures follow the same error policy as resume
+failures: retain an initialized error candidate, drain every queued Fiber once,
+attempt termination once, restore hooks in finally and notify observers as failed.
+Header preparation is separate from publication; neither failure may skip drain.
+
 ### WordPress/PHP boundary and output
 
 Installed WordPress registers `shutdown_action_hook` in `wp-settings.php:166`.
@@ -265,15 +303,37 @@ WordPress authentication cookies are never accidentally encrypted. Preserve thei
 raw values and attributes. After successful unwind, replace only native cookie
 lines whose name/domain/path tuple matches a managed cookie, then append the final
 managed cookies. Retain unrelated native cookies, including same names at other
-paths/domains. Never issue an early session identity cookie. Set the final status
-and non-cookie headers, replay the reconciled Set-Cookie lines, run termination,
-then publish the prepared body once. Keep capture active during finalization: when
+paths/domains. Identify native cookies from the raw first name=value pair without
+URL decoding the name; managed names use their emitted wire spelling. Parse raw
+attribute presence separately from Symfony Cookie::fromString. For omitted,
+empty, or non-slash Path use browser default-path: take the request URI path (no
+query); if it is empty, not slash-prefixed, or contains only its leading slash,
+use '/'; otherwise take everything before the rightmost slash. Thus
+/cms/wp-admin/tools.php defaults to /cms/wp-admin. Domain omission means the
+canonical lowercase request host; explicit Domain is lowercase with leading dot
+removed. Host-only and explicit current-host cookies collide by name/domain/path
+(the host-only flag is not a separate storage key). Paths and raw names compare
+case-sensitively. Invalid/ambiguous names or domain attributes remain raw and are
+not considered identified conflicts. Partitioned native cookies also remain raw
+unless partition identity is known; this repair does not infer a partition key.
+Never use Symfony's default '/' or decoded name alone as native identity. These
+identity rules follow [RFC 6265 sections 5.1.4, 5.2.4 and 5.3](https://httpwg.org/specs/rfc6265.html). Never issue an early session identity cookie. Prepare headers, run termination, collect callback output, then set final status
+and non-cookie headers, replay reconciled Set-Cookie lines and publish body once.
+Always remove provisional Content-Length because captured/termination output can
+change it; let the server frame the response. Apply Response::prepare(request)
+after the complete body is assembled. HEAD emits zero body bytes; 1xx, 204 and
+304 emit no body and retain only headers permitted by Symfony prepare. Do not
+append captured callback output after prepare, which would restore forbidden
+body bytes. Ordinary GET publishes the assembled body exactly once. Keep capture active during finalization: when
 collecting the pre-finalization body, immediately open a fresh owned capture before
-resuming middleware or termination. Collect any callback output before publishing
-and append it after the prepared response body; no callback output may escape ahead
-of the headers. The Response passed to terminate represents the body prepared at
+resuming middleware or termination. Collect middleware/termination output and append it to the captured response body
+before the final prepare(request) call; no callback output may escape ahead of
+the headers. Sequence: assemble body, prepare for method/status, publish headers,
+invoke diagnostic observers with their output discarded, publish prepared body. The Response passed to terminate represents the body prepared at
 that point, before termination-generated output. The response supplied to terminate includes
-native status, Location, complete body and the combined cookie headers. Do not
+native status, Location, prepared pre-termination body and the combined cookie headers. Observer callbacks are
+diagnostic-only: discard their captured output, report thrown observer errors without
+retrying finalization, and never append observer bytes after response preparation. Do not
 resend the provisional empty admin body over WordPress output.
 
 ### Redirect, error and unsupported boundaries
@@ -290,8 +350,15 @@ For an early framework >=500 response, stage headers and sendContent into captur
 then return to WordPress exactly as today. Remove the inaccurate 'stop process'
 comment; do not add exit or finish FastCGI. Later WordPress callbacks may still
 mutate the session and their output remains in the body. Native wp_redirect + exit,
-wp_die, normal completion and late thrown errors that reach PHP shutdown all share
-this fallback. Framework-caught exceptions retain the existing handler-rendered
+wp_die, normal completion and late thrown errors **after kernel handling has
+returned and registered deferred Fibers** share this fallback. An exit inside
+downstream middleware/route code before next returns is unsupported: its started
+Fiber has not reached the deferral point. At shutdown detect owned nonterminated,
+unqueued Fibers, report incomplete kernel handling, suppress managed cookies and
+apply bounded cancellation only if suspended. An executing Fiber cannot be
+cancelled safely; report unresolved cleanup and make no persistence/resource-release
+claim for that path. Termination is still attempted once with the fallback response.
+Do not present late native-exit evidence as covering this case. Framework-caught exceptions retain the existing handler-rendered
 response. No claim is made for process kill, memory exhaustion or fatal errors
 before begin; do not replace WordPress's exception/fatal machinery.
 

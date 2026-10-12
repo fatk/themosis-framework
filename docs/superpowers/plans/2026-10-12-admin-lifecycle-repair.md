@@ -59,7 +59,7 @@ AdminRequestLifecycle::stage(Response $response): void;
 AdminRequestLifecycle::send(Response $response): void;
 AdminRequestLifecycle::finish(): Response;
 AdminRequestLifecycle::afterFinalized(Closure $observer): void;
-DeferredMiddleware::__construct(object $middleware, AdminRequestLifecycle $lifecycle, array $parameters = []);
+DeferredMiddleware::__construct(object $middleware, AdminRequestLifecycle $lifecycle, array $parameters = [], ?Closure $invoke = null);
 DeferredMiddleware::handle(Request $request, Closure $next): Response;
 AdminResponseBuffer::begin(): void;
 AdminResponseBuffer::stage(Response $response): void;
@@ -117,14 +117,14 @@ Run tests in isolated processes where real buffer/header publication would distu
 
 - [ ] **Step 2: Run `vendor/bin/phpunit tests/Core/AdminDeferredMiddlewareTest.php`.** Expected failure: new class absent, then behavioral failures until implemented.
 
-- [ ] **Step 3: Implement the exact-object suspension primitive.** The core method is:
+- [ ] **Step 3: Implement the exact-object suspension primitive.** The following skeleton shows normal deferral; the ownership/cancellation and invocation rules immediately below are required parts of this method:
 
 ```php
 public function handle(Request $request, Closure $next): Response
 {
     $calls = 0;
     $fiber = new Fiber(function () use ($request, $next, &$calls) {
-        return $this->middleware->handle($request, function ($request) use ($next, &$calls) {
+        return ($this->invoke)($request, function ($request) use ($next, &$calls) {
             if (++$calls !== 1) {
                 throw new LogicException('Deferred admin middleware called next more than once.');
             }
@@ -134,8 +134,9 @@ public function handle(Request $request, Closure $next): Response
             }
             $this->lifecycle->defer(Fiber::getCurrent());
             return Fiber::suspend($response);
-        }, ...$this->parameters);
+        });
     });
+    $this->lifecycle->own($fiber); // internal: retain before start, including unqueued Fibers
     $response = $fiber->start();
     if ($fiber->isTerminated()) {
         $response = $fiber->getReturn();
@@ -149,22 +150,30 @@ public function handle(Request $request, Closure $next): Response
 
 Add the missing contract guard: each Fiber that suspends must be registered by `defer` exactly once; reject arbitrary middleware Fiber::suspend calls. `defer` records identity with `spl_object_id`; duplicate registration fails. Keep a registered-Fiber identity accessor private/internal to the adapter/coordinator implementation, rather than exposing an application API.
 
-Implement lazy pipe closures: parse name/parameters, make original instance at invocation, compare exact get_class against the default three plus opted-in concrete classes, and call the adapter or original handle. Detect known middleware subclasses and standard-name bindings returning replacement objects before invoking them; disable the entire stack and report once. Standard wrappers recheck canDefer after downstream returns. This prevents a custom EncryptCookies subclass from encrypting early while a standard session later emits plaintext cookies. Preserve supplied closures unchanged and adapt supplied objects by the same eligibility rule. Do not change underlying middleware lists, because termination must keep its existing resolution semantics.
+Implement lazy pipe closures with the installed carry branches exactly: test is_callable on the original pipe first, and preserve its direct return without Responsable conversion. Otherwise resolve strings/parameters lazily, retain supplied objects, invoke handle if present or the object as callable otherwise, then convert only this branch's Responsable through toResponse(container->make(Request::class)). Pass that invocation/conversion closure to eligible adapters; the constructor's null invoke default builds the same non-callable handle/invokable closure for direct standard-object tests. No unrelated pipe gains a Response constraint. Keep the outer installed routing Pipeline exception handling, including report/render/withException; do not catch in the lazy closure. Compare exact get_class against defaults plus opted-in classes. Detect known middleware subclasses and standard-name bindings returning replacement objects before invoking them; disable the entire stack and report once. Standard wrappers recheck canDefer after downstream returns. This prevents a custom EncryptCookies subclass from encrypting early while a standard session later emits plaintext cookies. Preserve supplied closures unchanged; callable objects retain callable-before-handle semantics while still receiving the compatibility check and exact-class opt-in rule. Do not change underlying middleware lists, because termination must keep its existing resolution semantics.
 
-- [ ] **Step 4: Implement the coordinator state machine exactly as specified.** Use an ordered list of `{fiber, attempted}` records; mark attempted before resume. Keep `state`, `terminationAttempted`, `finalResponse`, `failed`, `deferralEnabled` and observer list. `finish` sets finalizing, obtains native snapshot, resumes each Fiber once, checks termination and Response return, publishes reconciled headers, marks termination attempted then invokes kernel terminate, invokes observers once, publishes body, restores owned hooks, and sets terminal state in finally. Each resume failure reports/renders, clears framework-managed cookies and continues outer resumes. A failing reporter/renderer falls back to error_log and a plain 500 Response. All managed cookie publication is disabled after any failed resume, even if later encryption succeeds. Existing vendor finally handles acquired locks; never add a second release.
+Maintain an internal own(Fiber): void registry independent of defer; own before start. An initial suspension without defer or any suspension after normal resume triggers one cancellation throw, never another resume. Catch its error and check termination. If it suspends again, quarantine its reference through request teardown, report unresolved cleanup, mark failed and suppress managed cookies; do not loop or manually release vendor locks. Remove references only on termination. See spec for the deliberately limited guarantee for cancellation-catching custom code. Tests must count try/finally release for initial and post-resume violations and demonstrate bounded quarantine for a cancellation-catching fixture.
 
-Do not catch a failed save and resume that Fiber again. Do not throw into a completed Fiber. Reentrant finish returns finalResponse as currently prepared. Termination failures report and stop that kernel's existing termination loop; do not artificially continue application callbacks skipped by a throwing middleware.
+- [ ] **Step 4: Implement the coordinator state machine exactly as specified.** Use an ordered list of `{fiber, attempted}` records; mark attempted before resume. Keep `state`, `terminationAttempted`, `finalResponse`, `failed`, `deferralEnabled` and observer list. `finish` initializes finalResponse before any callback, sets finalizing, obtains native snapshot, resumes each Fiber once, checks termination and Response return, prepares reconciled headers, marks termination attempted then invokes kernel terminate, collects callback output and prepares body for request/status, publishes final headers, invokes observers once, discards observer output as diagnostic-only, publishes body, restores owned hooks, and sets terminal state in finally. Each resume failure reports/renders, clears framework-managed cookies and continues outer resumes. A failing reporter/renderer falls back to error_log and a plain 500 Response. All managed cookie publication is disabled after any failed resume, even if later encryption succeeds. Existing vendor finally handles acquired locks; never add a second release.
+
+Snapshot/header-preparation exceptions must still drain every queued Fiber and attempt termination; use the initialized fallback response when snapshot fails. Test finish reentry from snapshot before any snapshot result exists. Do not catch a failed save and resume that Fiber again. Do not throw into a completed Fiber. Reentrant finish returns finalResponse as currently prepared. Termination failures report and stop that kernel's existing termination loop; do not artificially continue application callbacks skipped by a throwing middleware.
 
 - [ ] **Step 5: Implement buffer cooperation and native reconciliation.** `begin` opens an owned `php://temp` stream and removable capture handler returning ''. Preserve the original shutdown flush action's presence and priority. Remove only that callback, insert a wrapper which calls actual wp_ob_end_flush_all and reinstates capture in finally. Register finish after WordPress's PHP shutdown callback through the coordinator. No finalization/Fiber switch occurs inside the output handler. `snapshot` drains only owned/above-owned buffers, immediately restarts capture, reads captured body and native headers/status, copies provisional managed cookies, and returns a Symfony Response. Protect later callback output until publishBody.
 
-Keep raw native Set-Cookie lines outside the managed cookie bag during encryption. Parse their identity with `Symfony\Component\HttpFoundation\Cookie::fromString`; compare decoded name and normalized domain (lowercase, leading dot removed) and explicit path (default '/'). Preserve the exact raw line for non-conflicts; never reconstruct unrelated authentication cookies. Expiration commas do not split cookies: one headers_list element is one Set-Cookie line. For a malformed line, retain raw native content and do not guess its tuple. Managed tuple wins only an identified conflict. Publish raw native lines followed by managed lines, once, with header replacement false; remove the previous Set-Cookie header list first only while headers remain mutable. The response supplied to terminate includes combined cookies, without re-encrypting native ones.
+Keep raw native Set-Cookie lines outside the managed cookie bag during encryption. Parse raw name and attribute presence separately from Symfony Cookie::fromString: compare wire names without decoding, case-sensitive effective paths, and lowercase domains without leading dot. Omitted/empty/invalid non-slash Path uses request-path browser default directory; absent Domain uses request host and collides with explicit current-host Domain. Follow the companion spec's exact algorithm; retain ambiguous domain/name and unknown partition identities raw. Preserve the exact raw line for non-conflicts; never reconstruct unrelated authentication cookies. Expiration commas do not split cookies: one headers_list element is one Set-Cookie line. For a malformed line, retain raw native content and do not guess its tuple. Managed tuple wins only an identified conflict. Publish raw native lines followed by managed lines, once, with header replacement false; remove the previous Set-Cookie header list first only while headers remain mutable. The response supplied to terminate includes combined cookies, without re-encrypting native ones.
 
-Test duplicate same-name/different-path/domain cookies, expired cookies with comma-containing Expires, Secure/HttpOnly/SameSite/Partitioned attributes, native Location/status, and a native managed-tuple conflict. Use a PHP HTTP process for actual headers_list/header behavior because CLI does not expose equivalent response headers.
+Remove Content-Length unconditionally; assemble termination output before Response::prepare(request), and never append bytes afterward. Test GET changed body with stale Content-Length, HEAD and 204/304 with callback output. Test duplicate same-name/different-path/domain cookies, Path omitted/empty/non-slash/root/admin-directory, omitted versus explicit current-host Domain, distinct raw names such as a%62 and ab, expired cookies with comma-containing Expires, Secure/HttpOnly/SameSite/Partitioned attributes, native Location/status, and a native managed-tuple conflict. Use a PHP HTTP process for actual headers_list/header behavior because CLI does not expose equivalent response headers.
 
 - [ ] **Step 6: Add the failure/compatibility matrix before wiring.** Use real middleware and real stores with owned fake handler/cache-lock endpoints. Required assertions:
 
 | Test case | Exact outcome |
 | --- | --- |
+| String invokable / callable object with handle / non-callable Responsable | original invocation selected, parameters retained, conversion only in original non-callable branch |
+| Exception in resolution/invocation/toResponse | original routing report/render/withException path retained |
+| Unexpected initial / post-resume suspend | one cancellation, finally release=1, writes=0 / writes=1, no retry |
+| Cancellation caught then suspended | one injection only, failed quarantine, no claimed release; remaining queue and termination attempted |
+| Snapshot/header-preparation throw | all queued Fibers drained, one termination attempt, failed observer |
+| Snapshot calls finish reentrantly | initialized Response returned; no duplicate work |
 | CookieSessionHandler + queue + encryption | payload queued after one save, identity/payload encrypted once, exception cookie plain |
 | JSON Store and EncryptedStore | follow-up real store reads both flashes; handler payload follows configured format |
 | Blocking session | acquire=1, release=0 during late work, release=1 after finish |
@@ -234,7 +243,7 @@ Resolve `$app` from the Page's existing container access convention; do not chan
 
 - [ ] **Step 3: Add real shutdown subprocess tests.** The new process fixture loads the existing WordPress bootstrap supplied through THEMOSIS_WP_BOOTSTRAP, constructs only owned request/session state, executes actual admin_init, installs a late shutdown callback after priority1, then ends normally or with native redirect/exit. It writes a uniquely owned JSON observation afterFinalized; parent reads it only after child exit. Assert event order includes actual wp_ob_end_flush_all, late shutdown hook, one write, kernel/app termination, observer; body bytes exactly once. Cover Page GET/POST redirect and early500 callback continuation through guarded existing fixture entry points. Never let a fixture exit kill PHPUnit itself.
 
-Add a stream/explicit flush/owner-removal case: failed diagnostic, no header warnings or cookie-success claim, one save attempt and resource release. Add headers-already-sent-at-begin: coherent original middleware behavior plus diagnostic. An intentional finish before flush has exactly one finalization and no second save after any subsequent mutation.
+Add an exit inside downstream middleware before next returns: failed unqueued-owned-Fiber diagnostic, no successful persistence/resource claim, bounded cancellation only when suspended. Add a stream/explicit flush/owner-removal case: failed diagnostic, no header warnings or cookie-success claim, one save attempt and resource release. Add headers-already-sent-at-begin: coherent original middleware behavior plus diagnostic. An intentional finish before flush has exactly one finalization and no second save after any subsequent mutation.
 
 - [ ] **Step 4: Move HTTP observation.** Register existing owned recorder with afterFinalized once the coordinator exists; do not use its prior early PHP shutdown timing. Keep all ownership/path guards. Record final response status/header/cookie identity plus storage, counts and event order. The standalone reproduce diagnostic now exercises finish rather than adding a manual save and exits zero only when late normal/flash, combined early flash, regeneration identity and exactly-once termination all pass. Retain the second-save counterexample as an explanatory regression control if it remains useful, but do not use it as a repair.
 
@@ -263,6 +272,8 @@ Expected all exit 0. Existing complete frontend controls stay green. Ask root to
 - [ ] **Step 1: Root runs normal/late/combined-flash/late-regenerate/native-redirect/Page-GET/Page-POST/error sequences in Chrome.** Follow each write with two reads; confirm final cookie retrieves the stored regenerated identity. Include unrelated native cookie and Location/status control. Read observations after actual finalization only. Preserve existing retained IDs and fixtures.
 - [ ] **Step 2: Run full suites and parsing through established commands.** Root uses existing host PHPUnit, complete isolated WordPress suite and Jest commands already verified for this checkout. Parse changed source/test PHP (exclude Blade templates). Repeat only failed/relevant checks after fixes; use baseline 332 PHP /1197 assertions, 291 WP/2721, 17 Jest as context, not an assertion that new totals must match.
 - [ ] **Step 3: Independent final review.** Check source against the spec, verify failed-save no-retry and encrypted cookie safety, and compare real native headers/body to observations. Record exact commands, counts, source commit and browser cases in the root evidence report.
+Maintain an internal own(Fiber): void registry independent of defer; own before start. An initial suspension without defer or any suspension after normal resume triggers one cancellation throw, never another resume. Catch its error and check termination. If it suspends again, quarantine its reference through request teardown, report unresolved cleanup, mark failed and suppress managed cookies; do not loop or manually release vendor locks. Remove references only on termination. See spec for the deliberately limited guarantee for cancellation-catching custom code. Tests must count try/finally release for initial and post-resume violations and demonstrate bounded quarantine for a cancellation-catching fixture.
+
 - [ ] **Step 4: Root cleans only freshly owned lifecycle files/options/loader before parent fixture cleanup and commits the final evidence update.** No push/merge/PR. State any remaining unsupported boundaries explicitly in final report.
 
 ## Design experiment evidence (not implementation acceptance)
