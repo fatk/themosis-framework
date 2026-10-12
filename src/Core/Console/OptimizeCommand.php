@@ -36,7 +36,11 @@ class OptimizeCommand extends Command
             ->all();
 
         foreach ($tasks as $command) {
-            $this->call($command);
+            if (($exitCode = $this->call($command)) !== 0) {
+                $this->error("Command [{$command}] failed.");
+
+                return $exitCode;
+            }
         }
 
         $this->info('Files cached successfully!');

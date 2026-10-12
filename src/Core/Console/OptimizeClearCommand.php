@@ -25,12 +25,13 @@ class OptimizeClearCommand extends Command
      */
     public function handle()
     {
-        $this->call('view:clear');
-        $this->call('cache:clear');
-        $this->call('route:clear');
-        $this->call('event:clear');
-        $this->call('config:clear');
-        $this->call('clear-compiled');
+        foreach (['view:clear', 'cache:clear', 'route:clear', 'event:clear', 'config:clear', 'clear-compiled'] as $command) {
+            if (($exitCode = $this->call($command)) !== 0) {
+                $this->error("Command [{$command}] failed.");
+
+                return $exitCode;
+            }
+        }
 
         $this->info('Caches cleared successfully!');
     }
