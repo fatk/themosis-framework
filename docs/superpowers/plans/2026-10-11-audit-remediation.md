@@ -264,6 +264,48 @@ No speculative plugin/WooCommerce/job-chain/publish-race fixes, blanket CSRF
 exclusions, conditional method-dispatch fix, native Laravel nested-array fix,
 or healthy editor remount fix. Existing subdirectory theme URLs worked.
 
+## Phase 5 authorization — 2026-10-12
+
+Proceed with lifecycle verification/design (T19), optimize failure propagation
+(T20), the public date factory (T21), custom-entrypoint maintenance verification
+(T23), and unavailable media handling (T25). Skip multisite work (T24) unless
+evidence establishes a security threat. Cache-dependent scheduled-post batching
+(T22) remains deferred with Phase 3. Preserve the existing local branch and all
+audit/environment boundaries.
+
+- **T19:** Add complete admin lifecycle controls under
+  `tests/Core/AdminLifecycleTest.php`,
+  `tests/Integration/WordPress/AdminSessionLifecycleTest.php`, and owned HTTP
+  fixtures. Establish early/late writes, flash aging, redirects/exits,
+  regenerated IDs, cookies/final headers, errors, Page POST ordering, and
+  terminable callbacks. Review the control/design before production changes.
+  Any eventual repair must persist the correct session identity with exactly
+  one flash-aging boundary and exactly one termination; saving twice is not
+  sufficient. Source: `src/Core/Application.php`, `src/Page/Page.php`.
+- **T20:** Update `OptimizeCommand.php` and `OptimizeClearCommand.php` to stop
+  at the first failing child, return its nonzero code, identify that child,
+  and omit all-success output. Cover every failure position, distinct codes,
+  exclusions, success, and thrown exceptions; exercise installed Artisan
+  through injected commands without clearing unrelated caches.
+- **T21:** Restore `Factory::date($name, array $features = [], array $attributes = [])`
+  with `DateType`, facade documentation, native Forms/User/Taxonomy views, and
+  a registered React component. Inventory the implementation in a separate
+  specification. Preserve feature/attribute mapping and third-party factory
+  interfaces. Cover ISO dates, empty values, configured validation failure,
+  rendering/submission, and text controls. Run PHP/Jest suites and the
+  production build; include only directly required generated output.
+- **T23:** Establish normal WordPress and supported custom-kernel maintenance
+  behavior with isolated controls before selecting any middleware repair.
+  Do not put the retained audit HTTP site into maintenance.
+- **T25:** Guard false thumbnails and unavailable local files in
+  `MediaFieldTransformer`; preserve keys and return null for unavailable
+  thumbnail/size. Cover valid, deleted, missing, offloaded, and nonimage
+  resources under strict warning capture and confirm renderer compatibility.
+
+Task briefs and execution reports accompany the review process. No speculative
+lifecycle, maintenance, or multisite change is authorized by an unverified
+finding; the reviewed control/design gates still apply.
+
 ## Verification and handoff
 
 After each coherent fix: targeted tests, ./vendor/bin/phpunit, audit_wpunit,
