@@ -3,6 +3,7 @@ import Manager from "./src/components/Manager";
 import MetaboxFactory from "./src/components/MetaboxFactory";
 import TextField from "./src/components/fields/TextField";
 import TextareaField from "./src/components/fields/TextareaField";
+import DateField from "./src/components/fields/DateField";
 import EmailField from "./src/components/fields/EmailField";
 import PasswordField from "./src/components/fields/PasswordField";
 import IntegerField from "./src/components/fields/IntegerField";
@@ -32,6 +33,7 @@ const manager = new Manager();
  */
 manager.addComponent('themosis.fields.text', TextField);
 manager.addComponent('themosis.fields.textarea', TextareaField);
+manager.addComponent('themosis.fields.date', DateField);
 manager.addComponent('themosis.fields.email', EmailField);
 manager.addComponent('themosis.fields.password', PasswordField);
 manager.addComponent('themosis.fields.integer', IntegerField);

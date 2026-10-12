@@ -11,6 +11,7 @@ use Themosis\Forms\Fields\Types\CheckboxType;
 use Themosis\Forms\Fields\Types\ChoiceType;
 use Themosis\Forms\Fields\Types\CollectionType;
 use Themosis\Forms\Fields\Types\ColorType;
+use Themosis\Forms\Fields\Types\DateType;
 use Themosis\Forms\Fields\Types\EditorType;
 use Themosis\Forms\Fields\Types\EmailType;
 use Themosis\Forms\Fields\Types\HiddenType;
@@ -124,23 +125,31 @@ class Factory implements FieldFactoryInterface
     }
 
     /**
-     * Return a DateField instance.
+     * Return a native date type using the legacy features/attributes signature.
      *
-     * @param string $name       The name attribute of the date input.
-     * @param array  $features   Custom field features - title, info.
-     * @param array  $attributes Input html attributes.
+     * @param string $name
+     * @param array  $features   Field options; legacy title maps to label.
+     * @param array  $attributes Input HTML attributes.
      *
-     * @return \Themosis\Field\Fields\DateField
+     * @return FieldTypeInterface
      */
     public function date($name, array $features = [], array $attributes = [])
     {
-        $properties = [
-            'features' => $features,
-            'atts' => array_merge(['class' => 'newtag'], $attributes, ['data-field' => 'date']),
-            'name' => $name,
-        ];
+        if (isset($features['title']) && ! array_key_exists('label', $features)) {
+            $features['label'] = $features['title'];
+        }
+        unset($features['title']);
+        $features['attributes'] = array_merge(
+            ['class' => 'newtag'],
+            $features['attributes'] ?? [],
+            $attributes,
+            ['data-field' => 'date'],
+        );
 
-        return $this->make('Themosis\\Field\\Fields\\DateField', $properties);
+        return (new DateType($name))
+            ->setLocale($this->app->getLocale())
+            ->setViewFactory($this->viewFactory)
+            ->setOptions($features);
     }
 
     /**

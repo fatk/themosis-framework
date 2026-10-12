@@ -11,7 +11,7 @@ use Themosis\Forms\Contracts\FieldTypeInterface;
  * @method static FieldTypeInterface number(string $name, array $options = [])
  * @method static FieldTypeInterface integer(string $name, array $options = [])
  * @method static FieldTypeInterface email(string $name, array $options = [])
- * @method static mixed date($name, array $features = [], array $attributes = [])
+ * @method static FieldTypeInterface date($name, array $features = [], array $attributes = [])
  * @method static FieldTypeInterface textarea(string $name, array $options = [])
  * @method static FieldTypeInterface checkbox(string $name, array $options = [])
  * @method static FieldTypeInterface choice(string $name, array $options = [])

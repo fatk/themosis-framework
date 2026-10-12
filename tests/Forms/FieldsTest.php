@@ -41,6 +41,22 @@ class FieldsTest extends TestCase
         return new \Themosis\Field\Factory($this->getApplication(), $viewFactory);
     }
 
+    public function testDateValuesAndComponentSerialization(): void
+    {
+        $date = $this->getFieldsFactory()->date('birthday')
+            ->setManager(new Manager())
+            ->setResourceTransformerFactory(new Factory());
+        foreach (['2026-10-12', '', null] as $value) {
+            $date->setValue($value);
+            self::assertSame($value ?? '', $date->getValue());
+            self::assertSame($value ?? '', $date->getRawValue());
+            self::assertSame($value ?? '', $date->toArray()['value']);
+        }
+        self::assertSame('themosis.fields.date', $date->toArray()['component']);
+        self::assertSame('date', $date->toArray()['type']);
+        self::assertSame('text', $this->getFieldsFactory()->text('control')->getType());
+    }
+
     public function testResourceFactoryReturnFormTransformersInstances()
     {
         $factory = new Factory();
