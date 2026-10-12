@@ -22,6 +22,10 @@ class TextField extends React.Component <FieldProps> {
         this.props.changeHandler(this.props.field.name, e.target.value);
     }
 
+    protected get inputType(): string {
+        return 'text';
+    }
+
     /**
      * Render component UI.
      */
@@ -36,7 +40,7 @@ class TextField extends React.Component <FieldProps> {
                 <div className="themosis__column__content">
                     <input id={this.props.field.attributes.id}
                            className={classNames('themosis__input', this.props.field.attributes.class)}
-                           type="text"
+                           type={this.inputType}
                            name={this.props.field.name}
                            value={this.props.field.value}
                            onChange={this.onChange}
