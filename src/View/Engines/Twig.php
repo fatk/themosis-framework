@@ -18,11 +18,6 @@ class Twig implements Engine
      */
     protected $finder;
 
-    /**
-     * @var string
-     */
-    protected $extension = '.twig';
-
     public function __construct(Environment $twig, FileViewFinder $finder)
     {
         $this->twig = $twig;
@@ -43,20 +38,6 @@ class Twig implements Engine
      */
     public function get($path, array $data = [])
     {
-        $name = array_search($path, $this->finder->getViews());
-
-        return $this->twig->render($this->parseFileName($name) . $this->extension, $data);
-    }
-
-    /**
-     * Parse the view file name. Replace "." by "/" characters.
-     *
-     * @param string $name
-     *
-     * @return string
-     */
-    protected function parseFileName(string $name)
-    {
-        return str_replace('.', '/', $name);
+        return $this->twig->render($path, $data);
     }
 }

@@ -247,7 +247,6 @@ class ThemeManager
         }
 
         $factory = $this->app->make('view');
-        $twigLoader = $this->app->make('twig.loader');
 
         foreach ($paths as $path => $priority) {
             if (is_numeric($path)) {
@@ -262,7 +261,6 @@ class ThemeManager
 
             $uri = $this->dirPath . '/' . trim($location, '\/');
             $factory->getFinder()->addOrderedLocation($uri, $priority);
-            $twigLoader->addPath($uri);
         }
 
         return $this;

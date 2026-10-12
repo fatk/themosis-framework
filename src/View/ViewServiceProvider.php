@@ -8,7 +8,6 @@ use Themosis\View\Engines\Twig;
 use Themosis\View\Extensions\WordPress;
 use Twig\Environment;
 use Twig\Extension\DebugExtension;
-use Twig\Loader\FilesystemLoader;
 
 class ViewServiceProvider extends IlluminateViewServiceProvider
 {
@@ -39,7 +38,7 @@ class ViewServiceProvider extends IlluminateViewServiceProvider
     public function registerTwigLoader()
     {
         $this->app->singleton('twig.loader', function ($app) {
-            return new FilesystemLoader($app['view.finder']->getPaths());
+            return new TwigLoader($app['view.finder']);
         });
     }
 
