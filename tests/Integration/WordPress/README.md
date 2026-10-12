@@ -116,3 +116,17 @@ JSON reports its hash and rendered selector, inherited variable, quoted comma
 and nested data values. Call `themosis_owned_template_clear()` with WordPress
 and this fixture loaded to remove only that compiled file before recompilation
 or before removing the existing owner state. No application view cache is cleared.
+
+For editor persistence, load the opt-in `fixtures/editor.php` after `admin.php`
+from the same temporary owned mu plugin. On owned posts only, its priority-30
+localization initializes `themosis_regression_editor` with `th_regression_editor`.
+The retained priority-20 localization and retained core asset remain intact.
+The existing `themosis-audit-core` handle uses `/audit-editor-core?sha256=<hash>`
+to serve the fixed `/framework/dist/js/themosis.core.js` path; no file parameter
+is accepted. This endpoint stays inactive without the owned fixture option.
+Confirm both native and framework TinyMCE controls initialize, edit Code and
+click the metabox Save button immediately without blur, then verify GET
+`metabox/themosis_regression_editor?post_id=<owned post>`, `get_post_meta()` and
+reload. Repeat with Visual input/change, Visual-to-Code-to-Visual transitions,
+blur and repeated saves. Inspect only owned metadata and remove this temporary
+loader before the existing owned fixture cleanup.

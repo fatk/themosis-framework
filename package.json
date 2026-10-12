@@ -78,7 +78,7 @@
       "^.+\\.tsx?$": "ts-jest"
     },
     "moduleNameMapper": {
-      "\\.(css|scss)$": "identity-obj-proxy"
+      "\\.(css|scss)$": "<rootDir>/resources/js/tests/styleMock.js"
     },
     "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
     "moduleFileExtensions": [

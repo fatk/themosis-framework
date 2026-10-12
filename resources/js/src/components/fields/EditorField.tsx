@@ -24,6 +24,7 @@ class EditorField extends React.Component <FieldProps> {
                     <textarea id={this.props.field.attributes.id}
                               className={'wp-editor'}
                               defaultValue={this.props.field.value}
+                              onChange={event => this.props.changeHandler(this.props.field.name, event.currentTarget.value)}
                               name={this.props.field.name}/>
                     {hasErrors(this.props.field) && <Error messages={getErrorsMessages(this.props.field)}/>}
                     {this.props.field.options.info && <Description content={this.props.field.options.info}/>}
@@ -37,8 +38,8 @@ class EditorField extends React.Component <FieldProps> {
             'tinymce': {
                 ...this.props.field.options.settings_js?.tinymce,
                 'init_instance_callback': (editor: any) => {
-                    editor.on('blur', () => {
-                        this.props.changeHandler(this.props.field.name, tinyMCE.get(this.props.field.attributes.id).getContent());
+                    editor.on('input change blur', () => {
+                        this.props.changeHandler(this.props.field.name, editor.getContent());
                     });
                 }
             }
