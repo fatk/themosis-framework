@@ -1,7 +1,7 @@
 # Admin lifecycle verification and proposed repair
 
 Date: 2026-10-12. Base: `2c12e5d5`, branch `fix/audit-remediation`.
-Status: verification/design gate; **no lifecycle production implementation**.
+Status: refined design for independent review; **no lifecycle production implementation**. Refinement base: `45b6b919`.
 
 ## Reproduced request boundary
 
@@ -106,80 +106,239 @@ and termination counts. Run `themosis_owned_lifecycle_cleanup()` **before** clea
 the parent admin fixture; it removes only guarded owner-directory session files
 and the owner record option. Remove the temporary mu-plugin loader separately.
 
-## Proposed minimal repair architecture (requires review)
+## Selected coordinated repair
 
-A termination-only change in `Application` cannot satisfy persistence. A second
-`Store::save()` cannot satisfy flash lifetime. A shutdown-only cookie update cannot
-repair headers already sent. The minimal coherent unit therefore extends beyond
-adding calls to `Application.php` and `Page.php`:
+Three approaches were considered. A second save at shutdown loses early flash and
+cannot correct committed cookies; reject it. Subclassing three middleware classes
+and copying their protected startup/save/lock algorithms works, but recreates
+version-sensitive vendor behavior and loses state of custom container instances.
+Select a request-local **deferred middleware unwind**: wrap only supported resolved
+middleware objects in PHP Fibers and suspend immediately after their downstream
+call returns. Resume the original objects at the final WordPress boundary. This
+uses the installed implementations for persistence, serialization, cookies,
+encryption and lock release; no session algorithms are reimplemented.
 
-1. Introduce an admin request lifecycle coordinator, activated by `manageAdmin`
-   before kernel handling. It retains the request, kernel, response, deferred
-   response callbacks, and independent `finalizing`, `persisted`, and `terminated`
-   guards. It owns only output buffering it starts, recording the original level.
-2. Add an admin-aware `StartSession` adapter. Retain normal startup, garbage
-   collection and request session binding. In an active admin lifecycle defer
-   `storeCurrentUrl`, session-cookie construction, and `saveSession` to the final
-   response boundary. Outside that context delegate unchanged to Illuminate.
-   Invoke the real store's `save()` **once**, preserving serialization and handler
-   semantics, so `_flash.new` becomes `_flash.old` exactly once per request.
-3. Defer the response side of queued-cookie/encrypted-cookie middleware too when
-   present. Run deferred response operations in their original unwind order:
-   session finalization, queued cookies, then cookie encryption. Use the actual
-   configured cookie policies and encryption exception lists. Do not manually
-   serialize stores, copy flash internals, or issue plaintext replacement cookies.
-4. Keep WordPress output in the coordinator's owned buffer until a final boundary.
-   For normal/native-exit requests, finalization occurs after WordPress shutdown
-   hooks and before PHP implicitly flushes output. Preserve native response status,
-   `Location`, and unrelated cookies/headers when reconciling framework cookies.
-   Avoid resending the empty admin response over WordPress content.
-5. `Page` redirect paths explicitly finalize the actual redirect response before
-   `send()`/`exit()` can flush or finish FastCGI. Framework error responses likewise
-   finalize before sending. Whether >=500 must stop all subsequent WordPress
-   processing needs an explicit behavioral decision: today's source comment says
-   stop, but it does not exit. Do not silently bundle that behavior change.
-6. Terminate the kernel exactly once after final response preparation/persistence;
-   the PHP shutdown fallback handles native exits, and explicit Page/error paths
-   share the same guard. Mark termination in progress before calling callbacks to
-   avoid reentrant duplication. Preserve middleware termination and callbacks
-   registered during application termination. Never globally redefine
-   `Application::terminate()` as once-only for unrelated uses.
+This is one coordinated subsystem. Middleware deferral, owned output capture,
+response reconciliation and termination must ship together. No partial production
+commit may introduce deferred saves without a working finalizer and cookie boundary.
 
-Recommended compatibility boundary: map the exact standard Illuminate middleware
-classes to these admin-aware adapters **only while resolving the admin request**.
-Keep non-admin routes unchanged. Existing custom subclasses or container bindings
-must retain their behavior; provide explicit adapter opt-in rather than silently
-replacing them. The exact resolver integration and custom middleware contract must
-be reviewed before implementation. This is preferable to a global session-manager
-or Store override, which would alter unrelated framework behavior and drivers.
+### Exact middleware compatibility
 
-This proposal is a concrete repair direction, not approval to start implementing.
-The next change must first prove final-boundary mechanics with failing regressions
-and settle the compatibility points below. No source changes are in this commit.
+Add `Themosis\Core\Http\Admin\AdminRequestLifecycle`,
+`DeferredMiddleware`, and `AdminResponseBuffer`. Kernel global middleware and the
+router's already-expanded, priority-sorted route middleware pass through
+`AdminRequestLifecycle::pipes(array): array` only while this request is active.
+Outside that scope return the original array. Do not change the container bindings,
+router aliases, priority list, stored middleware strings or termination resolution.
 
-## Remaining uncertainty and next acceptance gate
+Each string is parsed once at the first colon; preserve comma-separated parameters
+and resolve its class through the existing container. Route aliases are already
+expanded by `gatherRouteMiddleware`; global entries keep the kernel's existing
+class-name convention. Closures and supplied object middleware retain normal
+pipeline handling. For object middleware, apply the same exact-class eligibility
+check without resolving a replacement. Resolve lazily when the pipeline invokes
+the pipe, not when constructing the list: this preserves middleware dependency and
+exception timing. Invoke the same resolved instance with the original parameters.
 
-- Cookie-backed sessions, encrypted cookies, custom session middleware/bindings,
-  JSON/encrypted stores, and lock-enabled sessions are not exercised by the audit
-  HTTP fixture. Blocking-session lock lifetime needs special care when deferring
-  persistence; do not release locks at the original early middleware boundary.
-- Explicit `flush()`, arbitrary buffer manipulation, streamed responses, native
-  headers sent before the framework hook, and fatal errors before initialization
-  cannot be treated as covered by the normal/redirect/error controls.
-- The error control creates an early 500 response; it does not establish thrown
-  exception behavior at every WordPress stage or process-kill durability.
-- The current HTTP recorder is registered on `init`. A future shutdown finalizer
-  registered later could run after it. Move acceptance observation after actual
-  finalization (or use a subsequent request/storage reader) before using its
-  counters to validate a future implementation. Current zero termination findings
-  are also independently confirmed by source and the explicit kernel diagnostic.
-- For a future change, assert early and late flash together, regenerate-and-redirect
-  identity, exactly one handler write/aging boundary, final headers, and exactly one
-  termination for normal, native redirect/exit, Page GET and POST redirects, and
-  errors. Verify no-session and complete front-end request controls as well.
-- Multisite is excluded by user instruction. Cache/configuration/environment,
-  dependency upgrades, nonce policy and retained fixtures are outside this work.
+Default eligible concrete classes are exactly Illuminate's `StartSession`,
+`AddQueuedCookiesToResponse`, and `EncryptCookies`. Container factories returning
+these exact types remain authoritative, including configured encrypters, cookie
+exception lists and lock cache resolver. Arbitrary subclasses, decorators and
+custom replacements are not silently substituted. Expose
+`allowDeferredMiddleware(string $concreteClass): void` on the coordinator for
+explicit exact-class opt-in to the same suspension contract. There are no existing
+framework wrapper subclasses in this checkout; root confirmed the audit group uses
+standard StartSession and ShareErrorsFromSession. Do not infer safe subclasses by
+reflection or by their names. For a non-opted-in subclass of these three middleware,
+report one compatibility diagnostic through the existing exception reporter and
+disable deferral for the entire active stack before invoking its original handle.
+Every standard adapter checks that request-wide flag again after downstream returns
+and before suspending, so all three original unwind operations remain together.
+Also disable if a requested standard class binding resolves to an unrelated custom
+object. Late persistence is explicitly not guaranteed for that customized stack.
+Never defer StartSession while a non-opted-in encryption wrapper unwinds early;
+that could expose plaintext cookies. If incompatibility is discovered only after
+a Fiber is already queued (nonstandard nested dispatch), fail finalization, drain
+queued Fibers for resource release, and suppress all managed cookie publication. Unrelated middleware remains unchanged.
 
-The design gate remains open until the coordinator/adapters and compatibility
-boundary are reviewed. Full suite success here validates the added controls; it
-does not close LIFE-01.
+The adapter starts a Fiber invoking the original `handle`. Its supplied `$next`
+calls the real downstream continuation, appends the current Fiber to the lifecycle
+queue, then suspends with the provisional response. It returns the final response
+when resumed. The queue is naturally in original response-unwind order: session,
+queued cookies, encryption for the standard stack. Do not sort it by class names.
+A middleware returning without invoking next completes normally and is not queued.
+An opted-in middleware must call next at most once and return a Symfony Response;
+multiple next calls, an unexpected suspension, or a non-Response return are reported
+contract errors, never silently treated as successful finalization.
+
+The routing pipeline still catches downstream exceptions and produces its usual
+error response before the adapter suspends. A startup/acquisition exception occurs
+at its original place and is handled by that existing pipeline/kernel. No Fiber
+runs inside a PHP output-handler callback. Fiber references remain owned until
+finalization, including on native exit after kernel handling.
+
+### Whole-request state and failures
+
+States are `new -> active -> finalizing -> finalized|failed`. `begin(Request,
+Kernel): void` is called before admin kernel handling; `stage(Response): void`
+retains the framework response and emits its non-cookie headers without flushing
+body output. `finish(): Response` is the one terminal operation. Mark finalizing
+before invoking any user/vendor callback. A duplicate or reentrant finish returns
+the current final response without invoking any deferred operation or termination
+again. No failed operation is retried. Record each Fiber as attempted before resume;
+check it is terminated after resume, then accept its returned Response.
+
+At finish, collect captured body and native status/headers into a real Symfony
+Response. Copy provisional framework cookies into its managed cookie bag. Resume
+queued Fibers once in queue order with this response, accepting each returned
+response. The real StartSession performs storeCurrentUrl, identity cookie creation
+and exactly one save, in its installed order. Real Store ages flash once, serializes
+PHP/JSON and uses EncryptedStore when configured. CookieSessionHandler queues its
+payload during save; AddQueuedCookies sees that payload afterward; EncryptCookies
+then honors per-instance and static exceptions and prefixes.
+
+On any resume/cookie/preparation exception, report through the configured Themosis
+handler and obtain its rendered error Response while headers remain mutable. Clear
+all framework-managed cookies from the failed candidate, including cookies added
+before a partially completed save. Continue resuming remaining suspended outer
+Fibers with the error response so their finally blocks run; if another operation
+fails, report it and again clear the candidate cookie bag. Suppress publication of
+all managed cookies for the failed finalization, even if outer operations succeed.
+Never retry save or manually repair flash. A failed storage write may already have
+partially persisted data: error outcome is honest, no rollback is claimed.
+`Store::save()` ignores a handler's false return; preserve that vendor behavior and
+make no stronger durability claim. Thrown failures are observable.
+
+Mark termination attempted before calling `Kernel::terminate(request, finalResponse)`.
+Call it once even after a deferred failure. Preserve its existing abort-on-exception
+semantics: do not rerun middleware or application callbacks after a termination
+exception. Report that exception; keep the prepared response. Application callbacks
+registered by other application termination callbacks continue according to the
+existing Application loop. No global change to Application::terminate is needed.
+If the reporter or renderer itself throws, use a minimal 500 Response and error_log
+as last-resort reporting; still unwind remaining Fibers and attempt termination.
+
+The original StartSession blocking try/finally remains suspended across WordPress
+execution. On resume or exception its original finally releases its lock exactly
+once. Do not add another release path. Acquisition timeout retains the vendor's
+original finally/release semantics. Preserve configured lock TTL and wait time;
+this repair does not extend or renew a lock lease. A request outliving its configured
+lease cannot claim exclusive access for that extra time. Session regeneration keeps
+the originally acquired lock key, exactly as upstream middleware does.
+
+### WordPress/PHP boundary and output
+
+Installed WordPress registers `shutdown_action_hook` in `wp-settings.php:166`.
+That callback runs the entire shutdown action then wp_cache_close
+(`wp-includes/load.php:1302`). The default flush-all action has priority 1
+(`default-filters.php:443`); `functions.php:5578` blindly calls ob_end_flush once per
+initial level. A non-removable buffer is therefore unsuitable: it produces notices
+which the application may convert to exceptions.
+
+Use a normal removable owned capture buffer, with a handler that appends chunks to
+owned storage and returns the empty string. Register a PHP shutdown finalizer after
+WordPress's registered callback. While active, replace only the standard priority-1
+`wp_ob_end_flush_all` action with an owned wrapper at priority 1. The wrapper calls
+the **actual** WordPress function; in finally it immediately reinstates owned
+capture if the lifecycle remains active. Other shutdown hooks are not removed or
+skipped. Same-priority callbacks retain their mutual order; the wrapper is appended
+at that priority. Capture holds the body while the standard flush drains buffers,
+and the reinstated buffer holds output from later callbacks. Finalization happens
+after the complete WordPress shutdown callback, before owned bytes are published.
+On explicit finish, restore the removed standard hook and remove only the owned
+wrapper; tests must restore hook state even on failure. If the standard callback
+was absent, do not invent it.
+
+Record the starting buffer level and owned handler identity. Close only removable
+buffers above/including that owned buffer to collect their output at finalization;
+never explicitly remove a pre-existing buffer. The actual WordPress flush-all may
+remove those buffers as it normally does. Unexpected owner removal outside the
+wrapper is a boundary violation; do not silently start another lifecycle. The
+handler can record its final-close event but cannot finalize, resume Fibers, start
+buffers or flush other buffers from inside itself. Use a temporary stream for
+captured body to avoid retaining duplicate large strings; close it after publish.
+
+Before resuming, native status, Location and non-cookie headers are authoritative:
+construct the final Response from http_response_code and headers_list, with the
+captured body. Keep native Set-Cookie lines separate from managed cookies so
+WordPress authentication cookies are never accidentally encrypted. Preserve their
+raw values and attributes. After successful unwind, replace only native cookie
+lines whose name/domain/path tuple matches a managed cookie, then append the final
+managed cookies. Retain unrelated native cookies, including same names at other
+paths/domains. Never issue an early session identity cookie. Set the final status
+and non-cookie headers, replay the reconciled Set-Cookie lines, run termination,
+then publish the prepared body once. Keep capture active during finalization: when
+collecting the pre-finalization body, immediately open a fresh owned capture before
+resuming middleware or termination. Collect any callback output before publishing
+and append it after the prepared response body; no callback output may escape ahead
+of the headers. The Response passed to terminate represents the body prepared at
+that point, before termination-generated output. The response supplied to terminate includes
+native status, Location, complete body and the combined cookie headers. Do not
+resend the provisional empty admin body over WordPress output.
+
+### Redirect, error and unsupported boundaries
+
+Both Page GET and POST redirects call lifecycle `send(Response): void` when active:
+stage its status/non-cookie headers and emit its body into owned capture with
+`sendContent`, then preserve the existing exit. Do not call Response::send() in
+this path: Symfony's default send invokes fastcgi_finish_request/litespeed_finish_request
+or closes buffers and flushes (`Response.php:405`). Shutdown still runs all regular
+WordPress callbacks before final save. Without an active lifecycle, retain the
+existing Page send/exit path.
+
+For an early framework >=500 response, stage headers and sendContent into capture,
+then return to WordPress exactly as today. Remove the inaccurate 'stop process'
+comment; do not add exit or finish FastCGI. Later WordPress callbacks may still
+mutate the session and their output remains in the body. Native wp_redirect + exit,
+wp_die, normal completion and late thrown errors that reach PHP shutdown all share
+this fallback. Framework-caught exceptions retain the existing handler-rendered
+response. No claim is made for process kill, memory exhaustion or fatal errors
+before begin; do not replace WordPress's exception/fatal machinery.
+
+Explicit flush/stream/send-and-finish is a terminal boundary, not a supported
+continuation of this stateful admin flow. Public `finish()` permits callers to
+finalize before doing an intentional stream/flush; subsequent session mutations
+are outside the lifecycle and cannot be persisted a second time. A StreamedResponse
+or BinaryFileResponse staged while active produces a reported unsupported-boundary
+error rather than pretending its body was captured. If headers are already sent at
+begin, report and leave the original middleware behavior in place. If headers become
+sent or the owned buffer disappears unexpectedly after activation, report a failed
+boundary; resume the one save/unwind and terminate to release resources, but do not
+claim cookie delivery, issue header warnings or retry. This includes arbitrary
+ob_end_flush/wp_ob_end_flush_all outside the owned shutdown wrapper and external
+fastcgi_finish_request calls. Explicit PHP flush may commit headers even if body
+capture is empty; it is not covered by normal completion guarantees.
+
+### Evidence and acceptance
+
+Isolated prototypes in `/private/tmp/life-design-*-probe.php` use installed classes
+without vendor/config mutation. PHP 8.5.11 results:
+
+- buffer probe loads actual WP plugin.php/functions.php: wp-start, wp-flush,
+  late-hook, wp-end, finalize, headers:open; body exactly earlylate.
+- Fiber StartSession probe: writes before=0, after=1; same final Response=true;
+  status=302; regenerated identity cookie matches; early/late flash both in _flash.old.
+- cookie probe: deferred order StartSession, AddQueuedCookies, EncryptCookies;
+  real cookie payload contains early+late flash, identity encrypted, configured
+  exception cookie remains plain, final status 302.
+- lock probe: one acquire, zero releases before late work, one release after finish.
+- thrown-save probe: owned-write-failure, one attempted write, one lock release,
+  Fiber terminated; the failed save is not resumable/retried.
+
+These are design experiments, not production acceptance. Regular tests must cover
+combined early/late flash across three fresh requests; one handler write; late
+regenerate-and-redirect identity; all supported exits; exactly-once termination and
+reentrancy; save/encryption/termination failure; acquired-lock release on thrown
+save; existing binding identity, aliases/parameters, custom opt-in and diagnostics;
+PHP/JSON/encrypted stores and real cookie sessions; no-session and complete frontend
+controls; native Location/status/unrelated cookie preservation; real WP flush-all
+plus later shutdown callback; early 500 continuation; explicit-boundary diagnostics.
+
+Move the owned HTTP fixture's recorder from its independent early-registered PHP
+shutdown callback to a callback registered through `afterFinalized(Closure): void`.
+Invoke observers after final cookie headers and termination, before body publish,
+on both success and failure; observer failure is reported without retrying finalize.
+Observe counters only there or from a subsequent request. Root owns real HTTP and
+Chrome acceptance, freshly provisioned guarded fixture values, cleanup and full
+suite runs. No cache/config/env changes, dependency upgrades, nonce migration,
+multisite expansion, push, merge or PR are part of LIFE-01. AUDIT.md stays untouched.
