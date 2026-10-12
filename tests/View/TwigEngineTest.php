@@ -3,6 +3,7 @@
 namespace Themosis\Tests\View;
 
 use Composer\Autoload\ClassLoader;
+use Illuminate\Container\Container;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\View\Engines\EngineResolver;
@@ -23,6 +24,7 @@ class TwigEngineTest extends TestCase
         $files->makeDirectory($directory.'/base', 0755, true);
         $files->makeDirectory($directory.'/theme');
         $directory = realpath($directory);
+        $previousContainer = Container::getInstance();
         try {
             $files->put($directory.'/base/page.twig', 'base');
             $files->put($directory.'/theme/page.twig', 'theme {% include "part.twig" %}');
@@ -51,7 +53,9 @@ class TwigEngineTest extends TestCase
             $finder->flush();
             $this->assertSame('theme physical', $factory->file($directory.'/theme/page.twig', ['value' => 'physical'])->render());
         } finally {
+            Container::setInstance($previousContainer);
             $files->deleteDirectory($directory);
         }
+        $this->assertSame($previousContainer, Container::getInstance());
     }
 }

@@ -85,6 +85,7 @@ class TwigLoaderTest extends TestCase
         $this->loader->addPath($this->directory.'/theme');
         $this->assertSame($this->directory.'/theme/page.twig', $this->finder->find('page'));
         $this->loader->addPath($this->directory.'/theme', 'theme');
+        $this->assertSame([$this->directory.'/theme'], $this->loader->getPaths('theme'));
         $this->assertSame($this->finder->find('theme::page'), $this->loader->getSourceContext('@theme/page.twig')->getPath());
     }
 
