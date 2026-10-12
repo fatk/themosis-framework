@@ -42,7 +42,7 @@ test.each(['input', 'change', 'blur'])('Visual %s synchronizes serialized conten
     expect(editor.save()).toBe('<p>visual</p>');
 });
 
-test('Visual and Code transitions and repeated saves retain the latest edit', () => {
+test('Alternating Visual and Code callbacks synchronize serialized snapshots', () => {
     const editor = fixture();
     editor.visual('<p>first</p>', 'input');
     expect(editor.save()).toBe('<p>first</p>');
