@@ -139,3 +139,12 @@ healthy PHPUnit controls and the explicit CLI acceptance diagnostic. The diagnos
 currently exits 1 for reproduced defects; it is separate from passing controls and
 does not silently skip failing acceptance. Run `themosis_owned_lifecycle_cleanup()`
 before removing the parent owner option, then remove the temporary fixture loader.
+
+For media resource verification, load the opt-in `fixtures/media.php` after the
+owned admin fixture and existing editor fixture (which supplies the fixed core
+asset endpoint). Priority-40 localization selects `themosis_regression_media`
+only for owned posts. Set `th_regression_media` to owned valid, nonimage,
+missing-file, offloaded and deleted attachments; verify native React rendering,
+resource `name`, nullable `thumbnail`/`filesize`, the text control, and persistence.
+Create only owned attachment records/files and remove them plus this temporary
+loader before removing the parent fixture option. No attachment IDs are retained.
