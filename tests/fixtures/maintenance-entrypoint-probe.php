@@ -32,7 +32,9 @@ if (! is_file($wordpress . '/wp-includes/load.php')) {
     throw new RuntimeException('Supply the installed WordPress directory.');
 }
 $owned = sys_get_temp_dir() . '/themosis-maintenance-probe-' . bin2hex(random_bytes(8));
-mkdir($owned, 0700);
+if (! @mkdir($owned, 0700)) {
+    throw new RuntimeException('Unable to create owned maintenance probe directory.');
+}
 $mode = new WordPressMaintenanceMode($owned . '/.maintenance', $owned . '/down');
 $controls = [
     'absent' => 'inactive;downstream',
@@ -44,7 +46,9 @@ $controls = [
 ];
 
 try {
-    file_put_contents($owned . '/maintenance.php', '<?php echo "native-maintenance";');
+    if (@file_put_contents($owned . '/maintenance.php', '<?php echo "native-maintenance";') === false) {
+        throw new RuntimeException('Unable to write native maintenance probe control.');
+    }
     foreach ($controls as $scenario => $expected) {
         $mode->deactivate();
         if ($scenario === 'framework-activated') {
@@ -54,7 +58,9 @@ try {
             }
         } elseif ($scenario !== 'absent') {
             $timestamp = time() - ($scenario === 'expired' ? 601 : 0);
-            file_put_contents($owned . '/.maintenance', '<?php $upgrading = ' . $timestamp . ';');
+            if (@file_put_contents($owned . '/.maintenance', '<?php $upgrading = ' . $timestamp . ';') === false) {
+                throw new RuntimeException('Unable to write maintenance probe timestamp.');
+            }
         }
         $process = new Process([PHP_BINARY, __FILE__, '--child', $wordpress, $owned, $scenario]);
         $process->mustRun();
@@ -70,6 +76,10 @@ try {
     echo 'framework-deactivated: inactive;empty-payload' . PHP_EOL;
 } finally {
     $mode->deactivate();
-    unlink($owned . '/maintenance.php');
-    rmdir($owned);
+    if (is_file($owned . '/maintenance.php')) {
+        unlink($owned . '/maintenance.php');
+    }
+    if (is_dir($owned)) {
+        rmdir($owned);
+    }
 }

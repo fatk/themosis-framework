@@ -7,9 +7,9 @@ import Error from "../errors/Error";
 
 interface MediaState {
     frame: any;
-    thumbnail: string;
+    thumbnail: string | null;
     name: string;
-    filesize: string;
+    filesize: string | null;
 }
 
 /**
@@ -124,7 +124,7 @@ class MediaField extends React.Component <FieldProps, MediaState> {
             <div className="themosis__field__media">
                 <div className="themosis__media__preview">
                     <div className="themosis__media__thumbnail">
-                        <img src={this.state.thumbnail} alt={this.state.name}/>
+                        <img src={this.state.thumbnail ?? undefined} alt={this.state.name}/>
                     </div>
                 </div>
                 <div className="themosis__media__content">
