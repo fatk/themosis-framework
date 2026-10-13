@@ -125,6 +125,33 @@ class TwigLoaderTest extends TestCase
         $this->loader->addPath($this->directory.'/missing');
     }
 
+    public function test_non_view_files_resolve_by_relative_path_with_theme_precedence()
+    {
+        $this->files->makeDirectory($this->directory.'/base/svg/icons', 0755, true);
+        $this->files->makeDirectory($this->directory.'/theme/svg/icons', 0755, true);
+        $this->files->put($this->directory.'/base/svg/icons/close.svg', '<svg>base</svg>');
+        $this->files->put($this->directory.'/base/svg/icons/open.svg', '<svg>open</svg>');
+        $this->files->put($this->directory.'/theme/svg/icons/close.svg', '<svg>theme</svg>');
+        $this->files->put($this->directory.'/base/page.twig', '{% include "svg/icons/close.svg" %}{{ source("svg/icons/open.svg") }}{% include "svg/missing.svg" ignore missing %}');
+        $this->finder->addOrderedLocation($this->directory.'/theme', 10);
+        $twig = new Environment($this->loader, ['cache' => $this->directory.'/compiled']);
+
+        $this->assertSame('<svg>theme</svg><svg>open</svg>', $twig->render('page.twig'));
+        $this->assertSame($this->directory.'/theme/svg/icons/close.svg', $this->loader->getCacheKey('svg/icons/close.svg'));
+        $this->assertFalse($this->loader->exists('svg/missing.svg'));
+    }
+
+    public function test_namespaced_non_view_files_resolve_by_relative_path()
+    {
+        $this->files->makeDirectory($this->directory.'/theme/svg', 0755, true);
+        $this->files->put($this->directory.'/theme/svg/logo.svg', '<svg>logo</svg>');
+        $this->finder->addNamespace('theme', $this->directory.'/theme');
+
+        $this->assertSame('<svg>logo</svg>', $this->loader->getSourceContext('@theme/svg/logo.svg')->getCode());
+        $this->assertFalse($this->loader->exists('@theme/svg/missing.svg'));
+        $this->assertFalse($this->loader->exists('../base/page.twig'));
+    }
+
     public function test_missing_templates_raise_twig_loader_errors()
     {
         $this->expectException(LoaderError::class);

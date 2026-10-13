@@ -91,11 +91,14 @@ class TwigLoader implements LoaderInterface
         if (in_array('..', explode('/', $view), true)) {
             throw new LoaderError(sprintf('Invalid template name "%s".', $name));
         }
+        $namespace = self::MAIN_NAMESPACE;
+        $relative = $view;
         if (str_starts_with($view, '@')) {
             $parts = explode('/', substr($view, 1), 2);
             if (count($parts) !== 2) {
                 throw new LoaderError(sprintf('Malformed namespaced template name "%s".', $name));
             }
+            [$namespace, $relative] = $parts;
             $view = $parts[0].'::'.$parts[1];
         }
         if (str_ends_with($view, '.twig')) {
@@ -106,6 +109,14 @@ class TwigLoader implements LoaderInterface
         try {
             $path = $this->finder->find($view);
         } catch (InvalidArgumentException $exception) {
+            // Non-view files (e.g. "svg/icon.svg") resolve by relative path,
+            // as with Twig's filesystem loader, in finder path order.
+            foreach ($this->getPaths($namespace) as $directory) {
+                if (is_file($file = rtrim($directory, '/').'/'.ltrim($relative, '/'))) {
+                    return realpath($file) ?: $file;
+                }
+            }
+
             throw new LoaderError($exception->getMessage(), -1, null, $exception);
         }
 
