@@ -962,13 +962,16 @@ if (! function_exists('route')) {
         $route = $url->route($name, $parameters, $absolute);
 
         // Outside the theme front controller (wp-admin, admin-ajax.php, wp-cron.php)
-        // the request root contains a WordPress script. Anchor routes on the WordPress
-        // home URL instead, unless a root was forced or the route targets another domain.
-        if ($absolute && function_exists('home_url')) {
+        // the request base is a WordPress script: anchor such URLs on the domain root,
+        // unless a root was forced or the route targets another domain. home_url() is
+        // not used, as language plugins prefix it (e.g. "/en").
+        $base = app('request')->getBaseUrl();
+
+        if ($absolute && str_ends_with($base, '.php') && basename($base) !== 'index.php') {
             $root = rtrim($url->to('/'), '/');
 
             if ($root === app('request')->root() && ($route === $root || str_starts_with($route, $root . '/') || str_starts_with($route, $root . '?'))) {
-                return rtrim(home_url(), '/') . substr($route, strlen($root));
+                return rootUrl(substr($route, strlen($root)));
             }
         }
 

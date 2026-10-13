@@ -12,9 +12,10 @@ visible to applications and should be checked before updating a site.
   `public`. Responses without an explicit policy keep Symfony's default
   (`no-cache, private`), and explicit `private`/`no-store` policies are respected.
   Check CDN/page-cache rules that relied on the old header.
-- **`route()`:** absolute URLs are built from `home_url()` (unless a root is
-  forced or the route has a domain). They no longer contain the request base,
-  such as `/cms/wp-admin/admin.php`, when generated from wp-admin, admin-ajax or cron.
+- **`route()`:** absolute URLs come from the URL generator, so route domains,
+  forced roots and subdirectory front controllers are honored. When generated
+  from a WordPress script (wp-admin, admin-ajax, wp-cron) they stay anchored on
+  the domain root as before. They never follow language-prefixed `home_url()` values.
 - **Deploy commands:** `optimize` stops and returns the exit code of the first
   failing child command. `optimize:clear` runs every task and then returns the
   first failure.

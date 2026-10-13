@@ -22,13 +22,22 @@ class RouteUrlTest extends WordPressTestCase
     }
 
     #[DataProvider('scripts')]
-    public function testAbsoluteNamedRoutesAreAnchoredOnTheWordPressHome(string $script, string $uri): void
+    public function testAbsoluteNamedRoutesAreAnchoredOnTheDomainRootOutsideTheFrontController(string $script, string $uri): void
     {
         $this->generator($script, $uri);
-        $home = rtrim(home_url(), '/');
+        // Language plugins (e.g. WPML) prefix home_url() with the current language;
+        // route URLs must not follow it.
+        add_filter('home_url', fn ($url) => rtrim($url, '/') . '/en/');
 
-        self::assertSame($home . '/articles/12?q=a%20b', route('article', ['id' => 12, 'q' => 'a b']));
+        self::assertSame('https://request.test/articles/12?q=a%20b', route('article', ['id' => 12, 'q' => 'a b']));
         self::assertSame('/articles/12?q=a%20b', route('article', ['id' => 12, 'q' => 'a b'], false));
+    }
+
+    public function testSubdirectoryFrontControllerKeepsItsBase(): void
+    {
+        $this->generator('/network/index.php', '/network/current');
+
+        self::assertSame('https://request.test/network/articles/12', route('article', ['id' => 12]));
     }
 
     public function testDomainRoutesAndForcedRootsKeepTheGeneratorUrl(): void
