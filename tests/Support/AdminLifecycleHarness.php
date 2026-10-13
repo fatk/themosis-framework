@@ -24,8 +24,11 @@ class AdminLifecycleHarness
     public function __construct(ArraySessionHandler $handler, ?string $id, ?callable $early = null)
     {
         $this->app = new class extends Application {
+            public array $shutdown = [];
             public function isWordPressAdmin() { return true; }
             public function dispatchForTest($kernel, $request) { return $this->dispatchToAdmin($kernel, $request); }
+            protected function onAdminShutdown(\Closure $callback): void { $this->shutdown[] = $callback; }
+            protected function exitAdmin(): void { throw new AdminExit(); }
         };
         $this->app->instance('config', new Repository(['app' => ['wp' => ['dir' => 'cms']], 'session' => [
             'driver' => 'owned', 'cookie' => 'owned_lifecycle', 'lifetime' => 120, 'lottery' => [0, 100],
@@ -50,6 +53,14 @@ class AdminLifecycleHarness
     {
         ($this->app->dispatchForTest(Kernel::class, $this->request))();
         $this->response = $this->probe->response;
+    }
+
+    /** Run what PHP would run at shutdown, once WordPress has finished the admin request. */
+    public function finishAdmin(): void
+    {
+        foreach (array_splice($this->app->shutdown, 0) as $callback) {
+            $callback();
+        }
     }
 
     public function dispatchComplete(): void
@@ -88,3 +99,6 @@ class LifecycleProbe
 
     public function terminate($request, $response): void { $this->terminations++; }
 }
+
+/** Stands in for exit() when the admin dispatcher stops WordPress. */
+class AdminExit extends \RuntimeException {}

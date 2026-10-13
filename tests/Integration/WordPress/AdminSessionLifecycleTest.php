@@ -10,7 +10,7 @@ require_once dirname(__DIR__, 2) . '/Support/AdminLifecycleHarness.php';
 
 class AdminSessionLifecycleTest extends WordPressTestCase
 {
-    public function testWordPressAdminInitPrecedesPagePostAndRetainsEarlySessionIdentity(): void
+    public function testWordPressAdminInitPrecedesPagePostAndPersistsEarlyAndLateSessionWrites(): void
     {
         wp_set_current_user($this->createUser('administrator'));
         $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -41,7 +41,11 @@ class AdminSessionLifecycleTest extends WordPressTestCase
             $response = $request->probe->response;
             $id = $response->headers->getCookies()[0]->getValue();
             self::assertSame($request->request->session()->getId(), $id);
-            self::assertSame($this->ownership, AdminLifecycleHarness::stored($handler, $id)['early']);
+            $request->finishAdmin();
+            $stored = AdminLifecycleHarness::stored($handler, $id);
+            self::assertSame($this->ownership, $stored['early']);
+            self::assertSame($this->ownership, $stored['late'], 'Page POST writes persist after WordPress finishes.');
+            self::assertSame(1, $request->terminations);
         } finally {
             $original->offsetUnset('page.' . $page->getSlug());
         }
@@ -61,6 +65,7 @@ class AdminSessionLifecycleTest extends WordPressTestCase
             $request->app->instance('action', $action);
             $request->app->manageAdmin(Kernel::class, $request->request);
             do_action('admin_init');
+            $request->finishAdmin();
             $id = $request->probe->response->headers->getCookies()[0]->getValue();
             self::assertSame($request->request->session()->getId(), $id);
             if ($step === 1) { self::assertSame($this->ownership, $request->probe->before['notice']); }

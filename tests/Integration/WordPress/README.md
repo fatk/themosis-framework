@@ -134,10 +134,9 @@ loader before the existing owned fixture cleanup.
 For admin lifecycle verification, load `fixtures/admin-lifecycle.php` after the
 owned admin fixture. The probe isolates session files/cookies per owner and records
 early/late values, flash, final headers, regenerated IDs and termination counts.
-See `docs/superpowers/specs/2026-10-12-admin-lifecycle-design.md` for browser sequences,
-healthy PHPUnit controls and the explicit CLI acceptance diagnostic. The diagnostic
-currently exits 1 for reproduced defects; it is separate from passing controls and
-does not silently skip failing acceptance. Run `themosis_owned_lifecycle_cleanup()`
+See `docs/superpowers/specs/2026-10-12-admin-session-save.md` for the deferred
+session save; `tests/Core/AdminLifecycleTest.php` and `AdminSessionLifecycleTest.php`
+cover it. Run `themosis_owned_lifecycle_cleanup()`
 before removing the parent owner option, then remove the temporary fixture loader.
 
 For media resource verification, load the opt-in `fixtures/media.php` after the

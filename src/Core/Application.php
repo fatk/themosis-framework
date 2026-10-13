@@ -6,6 +6,7 @@ use Closure;
 use Composer\Autoload\ClassLoader;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application as ApplicationContract;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Contracts\Foundation\CachesRoutes;
@@ -15,6 +16,8 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Http\Request;
 use Illuminate\Log\LogServiceProvider;
 use Illuminate\Log\Context\ContextServiceProvider;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Session\SessionManager;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Env;
@@ -29,6 +32,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Themosis\Core\Bootstrap\EnvironmentLoader;
 use Themosis\Core\Events\LocaleUpdated;
+use Themosis\Core\Http\Middleware\DeferredStartSession;
 use Themosis\Core\Maintenance\WordPressMaintenanceMode;
 use Themosis\Route\RouteServiceProvider;
 
@@ -1574,8 +1578,25 @@ class Application extends Container implements
         return function () use ($kernel, $request) {
             $kernel = $this->make($kernel);
 
+            // WordPress keeps running page callbacks, admin-post actions and redirects
+            // after this kernel. Defer the session save until the kernel terminates.
+            $this->extend(StartSession::class, function ($middleware, $app) {
+                if (get_class($middleware) !== StartSession::class) {
+                    return $middleware;
+                }
+
+                return new DeferredStartSession($app->make(SessionManager::class), function () use ($app) {
+                    return $app->make(CacheFactory::class);
+                });
+            });
+
             /** @var Response $response */
             $response = $kernel->handle($request);
+
+            // Terminate once WordPress has finished the request, including on exit().
+            $this->onAdminShutdown(function () use ($kernel, $request, $response) {
+                $kernel->terminate($request, $response);
+            });
 
             if (500 <= $response->getStatusCode()) {
                 // In case of an internal server error, we stop the process
@@ -1586,6 +1607,17 @@ class Application extends Container implements
                 $response->sendHeaders();
             }
         };
+    }
+
+    /**
+     * Register a callback to run after WordPress has finished an admin request.
+     * PHP shutdown functions run after WordPress's own "shutdown" action.
+     *
+     * @param Closure $callback
+     */
+    protected function onAdminShutdown(Closure $callback): void
+    {
+        register_shutdown_function($callback);
     }
 
     /**
