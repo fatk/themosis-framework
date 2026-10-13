@@ -114,7 +114,8 @@ class PreventRequestForgery
      */
     protected function isReading(Request $request)
     {
-        return in_array($request->method(), ['HEAD', 'GET', 'OPTIONS']);
+        // The real method: a form POST must not pass as a read through _method.
+        return in_array($request->getRealMethod(), ['HEAD', 'GET', 'OPTIONS']);
     }
 
     /**

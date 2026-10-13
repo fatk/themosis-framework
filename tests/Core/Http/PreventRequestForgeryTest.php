@@ -95,6 +95,16 @@ class PreventRequestForgeryTest extends TestCase
         $this->handle($this->request('POST', [], ['Sec-Fetch-Site' => 'cross-site']));
     }
 
+    public function testMethodOverrideToOptionsIsNotTreatedAsReading()
+    {
+        Request::enableHttpMethodParameterOverride();
+        $request = $this->request('POST', ['_method' => 'OPTIONS'], ['Sec-Fetch-Site' => 'cross-site']);
+        $this->assertSame('OPTIONS', $request->method());
+
+        $this->expectException(TokenMismatchException::class);
+        $this->handle($request);
+    }
+
     public function testSameOriginRequestPassesWithoutToken()
     {
         $response = $this->handle($this->request('POST', [], ['Sec-Fetch-Site' => 'same-origin']));

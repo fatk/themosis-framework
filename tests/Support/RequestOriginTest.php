@@ -20,7 +20,7 @@ class RequestOriginTest extends TestCase
             'user-initiated navigation' => [['HTTP_SEC_FETCH_SITE' => 'none'], false],
             'foreign origin without metadata' => [['HTTP_ORIGIN' => 'https://attacker.test'], true],
             'matching origin without metadata' => [['HTTP_ORIGIN' => 'https://EXAMPLE.test'], false],
-            'opaque origin without metadata' => [['HTTP_ORIGIN' => 'null'], false],
+            'opaque origin without metadata' => [['HTTP_ORIGIN' => 'null'], true],
             'legacy client without headers' => [[], false],
         ];
     }

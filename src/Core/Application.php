@@ -737,7 +737,8 @@ class Application extends Container implements
      */
     public function detectEnvironment(Closure $callback)
     {
-        $args = $_SERVER['argv'] ?? null;
+        // Only console arguments may select the environment (CVE-2024-52301).
+        $args = $this->runningInConsole() ? ($_SERVER['argv'] ?? null) : null;
 
         return $this['env'] = (new EnvironmentDetector())->detect($callback, $args);
     }

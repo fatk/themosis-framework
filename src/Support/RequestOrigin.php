@@ -32,8 +32,13 @@ class RequestOrigin
 
         $origin = $request->headers->get('Origin');
 
-        if (is_null($origin) || ! is_string($host = parse_url($origin, PHP_URL_HOST))) {
+        if (is_null($origin)) {
             return false;
+        }
+
+        // An opaque origin ("null": sandboxed frames, data: URLs) is never the site itself.
+        if (! is_string($host = parse_url($origin, PHP_URL_HOST))) {
+            return true;
         }
 
         return strtolower($host) !== strtolower($request->getHost());

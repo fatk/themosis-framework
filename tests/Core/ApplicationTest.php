@@ -380,6 +380,25 @@ class ApplicationTest extends TestCase
 
         abort(new CustomResponse());
     }
+
+    public function testWebRequestsIgnoreArgvWhenDetectingTheEnvironment()
+    {
+        $argv = $_SERVER['argv'] ?? null;
+
+        try {
+            $_SERVER['argv'] = ['index.php', '--env=testing'];
+            $web = new class() extends Application {
+                public function runningInConsole()
+                {
+                    return false;
+                }
+            };
+            $this->assertSame('production', $web->detectEnvironment(fn () => 'production'));
+            $this->assertSame('testing', (new Application())->detectEnvironment(fn () => 'production'));
+        } finally {
+            $_SERVER['argv'] = $argv;
+        }
+    }
 }
 
 class ApplicationMultiProvider extends ServiceProvider
