@@ -13,6 +13,7 @@ use League\Fractal\Manager;
 use League\Fractal\Resource\Item;
 use League\Fractal\Resource\ResourceInterface;
 use League\Fractal\Serializer\ArraySerializer;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Themosis\Forms\Contracts\DataTransformerInterface;
 use Themosis\Forms\Contracts\FieldsRepositoryInterface;
 use Themosis\Forms\Contracts\FieldTypeInterface;
@@ -22,6 +23,7 @@ use Themosis\Forms\Fields\Types\BaseType;
 use Themosis\Forms\Resources\Factory as TransformerFactory;
 use Themosis\Html\HtmlBuilder;
 use Themosis\Support\Contracts\SectionInterface;
+use Themosis\Support\RequestOrigin;
 
 /**
  * Class Form
@@ -290,6 +292,11 @@ class Form extends HtmlBuilder implements FormInterface, FieldTypeInterface
      */
     public function handleRequest(Request $request): FormInterface
     {
+        // Refuse state-changing submissions the browser reports as cross-site (CSRF).
+        if (! $request->isMethodSafe() && RequestOrigin::isCrossSite($request)) {
+            throw new AccessDeniedHttpException();
+        }
+
         $fields = $this->repository->all();
 
         $this->validator = $this->validation->make(

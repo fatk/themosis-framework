@@ -16,6 +16,7 @@ use Themosis\Page\Contracts\SettingsRepositoryInterface;
 use Themosis\Support\CallbackHandler;
 use Themosis\Support\Contracts\SectionInterface;
 use Themosis\Support\Contracts\UIContainerInterface;
+use Themosis\Support\RequestOrigin;
 
 class Page implements PageInterface
 {
@@ -982,6 +983,10 @@ class Page implements PageInterface
                 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
                     header('Allow: POST');
                     wp_die(__('This action requires a POST request.'), '', ['response' => 405]);
+                }
+
+                if (RequestOrigin::isCrossSite()) {
+                    wp_die(__('Sorry, you are not allowed to perform this action.'), '', ['response' => 403]);
                 }
 
                 $response = $this->handleCallback($callback, [$this], false);

@@ -5,6 +5,7 @@ namespace Themosis\Tests\Metabox;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Themosis\Core\Application;
 use Themosis\Metabox\Contracts\MetaboxManagerInterface;
@@ -60,10 +61,46 @@ class MetaboxApiControllerTest extends TestCase
         $manager->expects(self::once())->method($action === 'show' ? 'getFields' : 'saveFields')->willThrowException($denial);
         try {
             try {
-                (new MetaboxApiController($manager))->{$action}(Request::create('/'), 'restricted');
+                (new MetaboxApiController($manager))->{$action}(Request::create('/', $action === 'update' ? 'PUT' : 'GET'), 'restricted');
                 self::fail('A deliberate HTTP denial must propagate.');
             } catch (NotFoundHttpException $exception) {
                 self::assertSame($denial, $exception);
+            }
+        } finally {
+            Application::setInstance($previous);
+        }
+    }
+
+    public static function forgeries(): array
+    {
+        return [
+            'method override from a form post' => [Request::create('/', 'POST', ['_method' => 'PUT']), false],
+            'cross-site put' => [Request::create('/', 'PUT', [], [], [], ['HTTP_SEC_FETCH_SITE' => 'cross-site']), false],
+            'same-origin put' => [Request::create('/', 'PUT', [], [], [], ['HTTP_SEC_FETCH_SITE' => 'same-origin']), true],
+            'put without fetch metadata' => [Request::create('/', 'PUT'), true],
+        ];
+    }
+
+    #[DataProvider('forgeries')]
+    public function testUpdateRequiresARealSameSitePut(Request $request, bool $allowed): void
+    {
+        $previous = Application::getInstance();
+        $app = new Application();
+        $response = $this->createStub(\Illuminate\Contracts\Routing\ResponseFactory::class);
+        $response->method('json')->willReturn(new \Illuminate\Http\JsonResponse([], 200));
+        $app->instance(\Illuminate\Contracts\Routing\ResponseFactory::class, $response);
+        $box = $this->createStub(\Themosis\Metabox\Contracts\MetaboxInterface::class);
+        $box->method('toArray')->willReturn([]);
+        $app->instance('themosis.metabox.owned', $box);
+        $manager = $this->createMock(MetaboxManagerInterface::class);
+        $manager->expects($allowed ? self::once() : self::never())->method('saveFields')->willReturn($box);
+        try {
+            try {
+                (new MetaboxApiController($manager))->update($request, 'owned');
+                self::assertTrue($allowed, 'A forged update must be denied.');
+            } catch (AccessDeniedHttpException $exception) {
+                self::assertFalse($allowed);
+                self::assertSame(403, $exception->getStatusCode());
             }
         } finally {
             Application::setInstance($previous);

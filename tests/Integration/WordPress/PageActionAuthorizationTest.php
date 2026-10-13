@@ -21,12 +21,17 @@ class PageActionAuthorizationTest extends WordPressTestCase
             ['subscriber', 'POST', 'manage_network_options', true, 403],
             ['administrator', 'POST', 'manage_network_options', true, 403],
             ['network-manager', 'POST', 'manage_network_options', true, null],
+            ['administrator', 'POST', 'manage_options', false, 403, ['HTTP_SEC_FETCH_SITE' => 'cross-site']],
+            ['administrator', 'POST', 'manage_options', false, 403, ['HTTP_ORIGIN' => 'https://attacker.invalid']],
+            ['administrator', 'POST', 'manage_options', false, null, ['HTTP_SEC_FETCH_SITE' => 'same-origin']],
         ];
     }
 
     #[DataProvider('dispatches')]
-    public function testDispatchAuthorization(string $role, string $method, string $capability, bool $network, ?int $denial): void
+    public function testDispatchAuthorization(string $role, string $method, string $capability, bool $network, ?int $denial, array $headers = []): void
     {
+        unset($_SERVER['HTTP_SEC_FETCH_SITE'], $_SERVER['HTTP_ORIGIN']);
+        $_SERVER = array_merge($_SERVER, $headers);
         $user = $role === 'guest' ? 0 : $this->createUser($role === 'network-manager' ? 'subscriber' : $role);
         if ($role === 'network-manager') { get_userdata($user)->add_cap('manage_network_options'); }
         wp_set_current_user($user);

@@ -5,9 +5,11 @@ namespace Themosis\Metabox\Controllers;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Themosis\Metabox\Contracts\MetaboxManagerInterface;
+use Themosis\Support\RequestOrigin;
 
 class MetaboxApiController
 {
@@ -65,6 +67,12 @@ class MetaboxApiController
         $abstract = sprintf('themosis.metabox.%s', $id);
         if (! app()->bound($abstract)) {
             throw new NotFoundHttpException();
+        }
+
+        // Writes are cookie-authenticated without a token: refuse HTML form
+        // method overrides and cross-site requests (CSRF).
+        if ($request->getRealMethod() !== 'PUT' || RequestOrigin::isCrossSite($request)) {
+            throw new AccessDeniedHttpException();
         }
 
         try {
