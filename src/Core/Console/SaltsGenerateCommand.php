@@ -38,9 +38,12 @@ class SaltsGenerateCommand extends Command
     ];
 
     /**
+     * Salt alphabet. Excludes "$" (dotenv interpolates it in double-quoted
+     * values) and quote/backslash characters.
+     *
      * @var string
      */
-    protected $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,-./: ;<=>?@[]^_`{|}~';
+    protected $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#%&()*+,-./: ;<=>?@[]^_`{|}~';
 
     public function handle()
     {
@@ -97,9 +100,10 @@ class SaltsGenerateCommand extends Command
     {
         file_put_contents(
             $this->laravel->environmentFilePath(),
-            preg_replace(
+            // A callback keeps "\1" or "$1"-like salt characters from being read as backreferences.
+            preg_replace_callback(
                 $this->keyReplacementPattern($key),
-                $key . '="' . $salt . '"',
+                fn () => $key . '="' . $salt . '"',
                 file_get_contents($this->laravel->environmentFilePath()),
             ),
         );
@@ -124,7 +128,7 @@ class SaltsGenerateCommand extends Command
      * @param int    $length
      * @param string $chars
      *
-     * @throws \SodiumException
+     * @throws \Random\RandomException
      *
      * @return string
      */
@@ -133,7 +137,7 @@ class SaltsGenerateCommand extends Command
         $salt = '';
 
         for ($i = 0; $i < $length; $i++) {
-            $salt .= $chars[\Sodium\randombytes_uniform(strlen($chars))];
+            $salt .= $chars[random_int(0, strlen($chars) - 1)];
         }
 
         return $salt;
