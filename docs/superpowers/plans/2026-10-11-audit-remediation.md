@@ -317,3 +317,40 @@ application configuration. Explicitly stage files. Tests and fixes share
 atomic commits using configured identity/signing/trailers, no AI attribution.
 No push, merge or PR. Finally stop only the retained audit Compose project,
 inspect ps -a, and retain fixtures/volumes.
+
+## Final disposition — 2026-10-12
+
+Work resumed after the previous session stopped mid-LIFE-01. Guiding rule from
+the user: choose the simplest fix and never break the sites built on this fork.
+The Fiber-based admin lifecycle design was dropped in favor of a deferred
+session save (see `docs/superpowers/specs/2026-10-12-admin-session-save.md`).
+
+| Finding | Status | Commit(s) |
+| --- | --- | --- |
+| SEC-01, DATA-01, DATA-04, DATA-05, SEC-03, SEC-04, VIEW-01, VIEW-03, UI-01, API-01, LOW-03 | Fixed (earlier session) | see `git log` |
+| SEC-02 | Fixed: capability/method checks, then cross-site origin guard instead of a nonce migration | 053af8e2, d1fe8059, e7884585 |
+| DATA-02/03 | Fixed; textarea/editor follow-up | 2836607b, 5b685ccd, 24f0480d |
+| ROUTE-01 | Fixed; admin/AJAX/cron regression follow-up | 05e83f56, 3efe155c |
+| VIEW-02 | Fixed; non-view include regression follow-up (would have broken every site) | 824efada, beaf1ab1 |
+| OPS-01 | Fixed; optimize:clear runs every task | 0d4b63d0, 6b0c7416 |
+| LIFE-01 | Fixed with deferred session save and kernel termination | d5624da6 |
+| LOW-01 | Verified only; no supported custom entrypoint established | 6ea0d3d7 |
+| CACHE-01..06, PERF-01/02 | Deferred by the user: no site uses the framework drop-in | — |
+| LOW-02 | Skipped by the user: multisite unused, no security impact | — |
+
+Issues found after the audit:
+
+| Issue | Status | Commit |
+| --- | --- | --- |
+| Custom post status bypass of the publish capability | Fixed | ecd9a08d |
+| Metabox API / Page action / Form cross-site requests | Fixed | d1fe8059, e7884585 |
+| Admin middleware denials did not stop WordPress | Fixed | d51042f4 |
+| User/term fields writable without edit capability | Fixed | 5f434fbc |
+| Metabox 500 messages leaked; options.php ignored Page capability | Fixed | cad6c45c |
+| `salts:generate` crashed | Fixed | 82db3498 |
+| `make:auth` generated fataling controllers | Now refuses | 7710a5e1 |
+| Asset handle case / external detection | Fixed | ff7d449e |
+| Page settings not registered for REST/cron | Not fixed (needs admin/non-admin split) | — |
+| Media/collection fields accept any attachment ID | Not fixed (low) | — |
+
+Behavior changes are listed in `CHANGELOG.md`.
