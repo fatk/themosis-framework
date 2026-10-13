@@ -4,8 +4,10 @@ namespace Themosis\Tests\Integration\WordPress;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use Themosis\Forms\Fields\Types\ChoiceType;
+use Themosis\Forms\Fields\Types\EditorType;
 use Themosis\Forms\Fields\Types\IntegerType;
 use Themosis\Forms\Fields\Types\NumberType;
+use Themosis\Forms\Fields\Types\TextareaType;
 use Themosis\Forms\Fields\Types\TextType;
 
 class MetadataValueTest extends WordPressTestCase
@@ -14,7 +16,10 @@ class MetadataValueTest extends WordPressTestCase
     {
         $cases = [];
         foreach (['post', 'user', 'term'] as $type) {
-            foreach ([TextType::class, NumberType::class, IntegerType::class, ChoiceType::class] as $field) {
+            foreach ([TextType::class, TextareaType::class, EditorType::class, NumberType::class, IntegerType::class, ChoiceType::class] as $field) {
+                if ($type === 'term' && $field === EditorType::class) {
+                    continue; // Editor explicitly rejects term metadata.
+                }
                 foreach ([0, '0'] as $index => $zero) {
                     $cases[$type . '-' . class_basename($field) . '-' . $index] = [$type, $field, $zero];
                 }

@@ -5,8 +5,10 @@ namespace Themosis\Tests\Integration\WordPress;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Themosis\Forms\Fields\Types\ColorType;
+use Themosis\Forms\Fields\Types\EditorType;
 use Themosis\Forms\Fields\Types\EmailType;
 use Themosis\Forms\Fields\Types\PasswordType;
+use Themosis\Forms\Fields\Types\TextareaType;
 use Themosis\Forms\Fields\Types\TextType;
 use Themosis\Metabox\Manager;
 use Themosis\Taxonomy\Taxonomy;
@@ -19,10 +21,12 @@ class MetadataEscapingTest extends WordPressTestCase
     {
         $cases = [];
         foreach (['post', 'user', 'term'] as $type) {
-            foreach ([TextType::class, EmailType::class, PasswordType::class] as $class) {
+            foreach ([TextType::class, EmailType::class, PasswordType::class, TextareaType::class, EditorType::class] as $class) {
                 $cases[$type . '-' . class_basename($class)] = [$type, $class];
             }
         }
+        // Editor explicitly rejects term metadata.
+        unset($cases['term-EditorType']);
         // Color inherits post persistence, but explicitly rejects user/term metadata.
         $cases['post-ColorType'] = ['post', ColorType::class];
 
@@ -125,7 +129,7 @@ class MetadataEscapingTest extends WordPressTestCase
         return json_encode(['stage' => $stage, 'quote' => 'say "hello"', 'path' => 'C:\\raw\\files', 'literal' => '\\"'], JSON_THROW_ON_ERROR);
     }
 
-    private function field(string $class): TextType
+    private function field(string $class)
     {
         $field = new $class('escaping');
         $field->setLocale('en_US');
