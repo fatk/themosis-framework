@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (13.x): audit remediation
+## 13.1.0 (2026-10-13): audit remediation
 
 Hardening of the framework against the findings of the October 2026 audit.
 Most changes are pure fixes; the entries under **Behavior changes** can be
