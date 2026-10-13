@@ -121,9 +121,11 @@ class TwigLoader implements LoaderInterface
 
         // The engine receives the physical path selected by the view factory,
         // including Factory::file() views without a cached logical name.
+        // Only files inside a view location or namespace are accepted, as with
+        // Twig's filesystem loader, so template names cannot read arbitrary files.
         if (str_starts_with($name, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $name)) {
-            if (is_file($name)) {
-                return realpath($name) ?: $name;
+            if (is_file($name) && ($path = realpath($name)) && $this->insideViewLocations($path)) {
+                return $path;
             }
 
             throw new LoaderError(sprintf('Unable to find template "%s".', $name));
@@ -184,5 +186,22 @@ class TwigLoader implements LoaderInterface
         }
 
         return null;
+    }
+
+    private function insideViewLocations(string $path): bool
+    {
+        $directories = $this->finder->getPaths();
+
+        foreach ($this->finder->getHints() as $hints) {
+            $directories = array_merge($directories, (array) $hints);
+        }
+
+        foreach ($directories as $directory) {
+            if (($directory = realpath($directory)) && str_starts_with($path, rtrim($directory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

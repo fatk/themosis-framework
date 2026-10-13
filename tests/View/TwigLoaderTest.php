@@ -185,6 +185,25 @@ class TwigLoaderTest extends TestCase
         $this->assertSame($this->directory.'/theme/part.twig', $loader->getCacheKey('part.twig'));
     }
 
+    public function test_absolute_paths_must_be_inside_view_locations()
+    {
+        $this->files->put($this->directory.'/base/page.twig', 'page');
+        $this->files->put($this->directory.'/theme/ns.twig', 'ns');
+        $this->files->put($this->directory.'/outside.twig', 'outside');
+        $this->finder->addNamespace('theme', $this->directory.'/theme');
+
+        $this->assertSame('page', $this->loader->getSourceContext($this->directory.'/base/page.twig')->getCode());
+        $this->assertSame('ns', $this->loader->getSourceContext($this->directory.'/theme/ns.twig')->getCode());
+        $this->assertFalse($this->loader->exists($this->directory.'/outside.twig'));
+        $this->assertFalse($this->loader->exists($this->directory.'/base/../outside.twig'));
+        $this->assertFalse($this->loader->exists('/etc/hosts'));
+
+        $twig = new Environment($this->loader);
+        $this->files->put($this->directory.'/base/leak.twig', '{{ source("/etc/hosts") }}');
+        $this->expectException(LoaderError::class);
+        $twig->render('leak.twig');
+    }
+
     public function test_missing_templates_raise_twig_loader_errors()
     {
         $this->expectException(LoaderError::class);
