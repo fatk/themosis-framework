@@ -44,14 +44,14 @@ class OptimizeClearCommandTest extends TestCase
         $tasks = ['view:clear', 'cache:clear', 'route:clear', 'event:clear', 'config:clear', 'clear-compiled'];
         $cases = [];
         foreach ($tasks as $index => $name) {
-            $cases[] = [$name, $index + 2, array_slice($tasks, 0, $index + 1)];
+            $cases[] = [$name, $index + 2, $tasks];
         }
 
         return $cases;
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('failures')]
-    public function testOptimizeStopsAndReturnsChildFailure(string $name, int $code, array $expected)
+    public function testOptimizeClearRunsEveryTaskAndReturnsChildFailure(string $name, int $code, array $expected)
     {
         $ran = [];
         $artisan = $this->artisan($ran, [$name => $code]);
@@ -60,6 +60,19 @@ class OptimizeClearCommandTest extends TestCase
         $this->assertSame($expected, $ran);
         $this->assertStringContainsString($name, $artisan->output());
         $this->assertStringNotContainsString('Caches cleared successfully!', $artisan->output());
+    }
+
+    public function testOptimizeClearReturnsTheFirstOfSeveralFailures()
+    {
+        $ran = [];
+        $artisan = $this->artisan($ran, ['cache:clear' => 3, 'config:clear' => 5]);
+
+        $this->assertSame(3, $artisan->call('optimize:clear'));
+        $this->assertSame(['view:clear', 'cache:clear', 'route:clear', 'event:clear', 'config:clear', 'clear-compiled'], $ran);
+        $output = $artisan->output();
+        $this->assertStringContainsString('cache:clear', $output);
+        $this->assertStringContainsString('config:clear', $output);
+        $this->assertStringNotContainsString('Caches cleared successfully!', $output);
     }
 
     public function testOptimizePropagatesExceptionsAndStops()
