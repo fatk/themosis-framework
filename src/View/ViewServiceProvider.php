@@ -51,7 +51,9 @@ class ViewServiceProvider extends IlluminateViewServiceProvider
             $twig = new Environment(
                 $app['twig.loader'],
                 [
-                    'auto_reload' => true,
+                    // Recompile changed templates only while debugging (Twig's default);
+                    // deployments clear the compiled cache through view:clear.
+                    'auto_reload' => (bool) $app['config']->get('view.twig_auto_reload', $app['config']['app.debug']),
                     'cache' => $app['config']['view.twig'],
                 ],
             );
