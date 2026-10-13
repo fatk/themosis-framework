@@ -958,7 +958,21 @@ if (! function_exists('route')) {
      */
     function route($name, $parameters = [], $absolute = true)
     {
-        return app('url')->route($name, $parameters, $absolute);
+        $url = app('url');
+        $route = $url->route($name, $parameters, $absolute);
+
+        // Outside the theme front controller (wp-admin, admin-ajax.php, wp-cron.php)
+        // the request root contains a WordPress script. Anchor routes on the WordPress
+        // home URL instead, unless a root was forced or the route targets another domain.
+        if ($absolute && function_exists('home_url')) {
+            $root = rtrim($url->to('/'), '/');
+
+            if ($root === app('request')->root() && ($route === $root || str_starts_with($route, $root . '/') || str_starts_with($route, $root . '?'))) {
+                return rtrim(home_url(), '/') . substr($route, strlen($root));
+            }
+        }
+
+        return $route;
     }
 }
 
