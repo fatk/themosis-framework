@@ -358,20 +358,51 @@ class PostType implements PostTypeInterface
                 // Let's set to first registered status.
                 $statuses = array_keys($this->status);
 
-                return esc_attr(array_shift($statuses));
+                return $this->authorizeStatus(array_shift($statuses), $value);
             } elseif (isset($_REQUEST['post_status']) && ! empty($_REQUEST['post_status'])) {
                 // In case of a quickedit ajax save call, check the value of the "_status"
                 // select tag before processing default post_status.
                 if (isset($_POST['_status']) && ! empty($_POST['_status'])) {
-                    return esc_attr($_POST['_status']);
+                    return $this->authorizeStatus($_POST['_status'], $value);
                 }
 
                 // Else, simply apply the selected custom status value returned
                 // from the edit screen of the custom post type.
-                return esc_attr($_REQUEST['post_status']);
+                return $this->authorizeStatus($_REQUEST['post_status'], $value);
             }
         }
 
         return esc_attr($value);
+    }
+
+    /**
+     * Only apply a requested status if it is a draft or a registered custom
+     * status the current user may publish. Otherwise keep the status computed
+     * by WordPress, which has already applied its own capability checks.
+     *
+     * @param mixed  $status The requested status.
+     * @param string $value  The status computed by WordPress.
+     *
+     * @return string
+     */
+    protected function authorizeStatus($status, string $value): string
+    {
+        if (! is_string($status) || $status === $value) {
+            return esc_attr($value);
+        }
+
+        if ('draft' === $status) {
+            return $status;
+        }
+
+        $type = get_post_type_object($this->slug);
+
+        if (! array_key_exists($status, $this->status)
+            || ! $type
+            || ! current_user_can($type->cap->publish_posts)) {
+            return esc_attr($value);
+        }
+
+        return esc_attr($status);
     }
 }
