@@ -6,7 +6,11 @@ use Illuminate\Container\Container;
 use Illuminate\Session\ArraySessionHandler;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Session\SessionManager;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Response;
+use Themosis\Tests\Support\AdminExit;
 use Themosis\Tests\Support\AdminLifecycleHarness;
 
 require_once dirname(__DIR__) . '/Support/AdminLifecycleHarness.php';
@@ -134,6 +138,45 @@ class AdminLifecycleTest extends TestCase
         self::assertTrue(AdminLifecycleHarness::stored($handler, $first->cookieId())['custom']);
         $first->finishAdmin();
         self::assertSame(1, $first->terminations);
+    }
+
+    public static function denials(): array
+    {
+        return [
+            'redirect to login' => [fn () => new RedirectResponse('https://example.test/login'), true],
+            'forbidden' => [fn () => new Response('Forbidden', 403), true],
+            'unauthorized' => [fn () => new Response('Unauthorized', 401), true],
+            'csrf mismatch' => [fn () => new Response('Page Expired', 419), true],
+            'throttled' => [fn () => new Response('Too Many Requests', 429), true],
+            'unmatched admin path' => [fn () => new Response('', 404), false],
+            'not modified' => [fn () => new Response('', 304), false],
+            'ok' => [fn () => new Response(''), false],
+        ];
+    }
+
+    #[DataProvider('denials')]
+    public function testMiddlewareDenialsAreSentAndStopWordPress(\Closure $deny, bool $stops): void
+    {
+        $handler = new ArraySessionHandler(120);
+        $request = new AdminLifecycleHarness($handler, null, function ($session) {
+            $session->put('denied', true);
+        });
+        $request->probe->deny = $deny;
+        $stopped = false;
+        ob_start();
+        try {
+            $request->dispatchAdmin();
+        } catch (AdminExit $exception) {
+            $stopped = true;
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame($stops, $stopped);
+        // The session is still saved and the kernel terminated at shutdown.
+        $request->finishAdmin();
+        self::assertSame(1, $request->terminations);
+        self::assertTrue(AdminLifecycleHarness::stored($handler, $request->request->session()->getId())['denied']);
     }
 }
 

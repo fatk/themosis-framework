@@ -87,6 +87,8 @@ class LifecycleProbe
     public array $before = [];
     public int $terminations = 0;
     public $response;
+    /** Optional response returned instead of continuing, like a denying middleware. */
+    public $deny;
 
     public function __construct(private $early) {}
 
@@ -94,7 +96,7 @@ class LifecycleProbe
     {
         $this->before = $request->session()->all();
         if ($this->early) { ($this->early)($request->session()); }
-        return $this->response = $next($request);
+        return $this->response = $this->deny ? ($this->deny)() : $next($request);
     }
 
     public function terminate($request, $response): void { $this->terminations++; }

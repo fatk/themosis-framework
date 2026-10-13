@@ -1602,11 +1602,24 @@ class Application extends Container implements
                 // In case of an internal server error, we stop the process
                 // and send full response back to the user.
                 $response->send();
+            } elseif ($response->isRedirect() || in_array($response->getStatusCode(), [401, 403, 419, 429], true)) {
+                // A middleware denied the request (auth, can, CSRF, throttle):
+                // send it and stop WordPress from running the admin page.
+                $response->send();
+                $this->exitAdmin();
             } else {
-                // HTTP OK - Send only the response headers.s
+                // HTTP OK - Send only the response headers.
                 $response->sendHeaders();
             }
         };
+    }
+
+    /**
+     * Stop WordPress after sending an admin denial response.
+     */
+    protected function exitAdmin(): void
+    {
+        exit();
     }
 
     /**
