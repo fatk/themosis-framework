@@ -81,20 +81,12 @@ class AuthMakeCommand extends Command
      */
     public function handle()
     {
-        $this->createDirectories();
+        // The generated controllers rely on Themosis authentication traits that
+        // were removed in favor of laravel/ui; refuse instead of writing broken code.
+        $this->error('make:auth is no longer supported: its controllers use removed Themosis authentication traits.');
+        $this->line('Use laravel/ui instead: php artisan ui:auth');
 
-        $this->exportViews();
-
-        if (! $this->option('views')) {
-            $this->exportControllers();
-            $this->exportForms();
-            $this->files->append(
-                base_path('routes/web.php'),
-                $this->files->get(__DIR__ . '/stubs/make/routes.stub'),
-            );
-        }
-
-        $this->info('Authentication scaffolding generated successfully.');
+        return self::FAILURE;
     }
 
     /**

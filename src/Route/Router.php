@@ -117,6 +117,9 @@ class Router extends IlluminateRouter
      * Register the typical authentication routes for an application.
      * Avoid WordPress default endpoints.
      *
+     * @deprecated The make:auth controllers these routes target are no longer
+     *             generated; use laravel/ui (php artisan ui:auth) instead.
+     *
      * @param array $options
      */
     public function auth(array $options = [])
