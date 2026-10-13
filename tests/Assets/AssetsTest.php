@@ -119,6 +119,18 @@ class AssetsTest extends TestCase
         $this->assertTrue($file->isExternal());
     }
 
+    public function testAssetFinderOnlyTreatsUrlPrefixesAsExternal()
+    {
+        $finder = new Finder(new Filesystem());
+
+        $this->assertTrue($finder->find('//cdn.example.com/lib.js')->isExternal());
+        $this->assertTrue($finder->find('http://cdn.example.com/lib.js')->isExternal());
+
+        // A local path merely containing "http" or "//" is not an external URL.
+        $this->expectException(\Themosis\Asset\AssetException::class);
+        $finder->find('js/httpClient.js');
+    }
+
     public function testAssetsFactoryReturnAssetInstance()
     {
         $factory = $this->getFactory();

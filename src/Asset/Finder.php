@@ -115,7 +115,7 @@ class Finder
     protected function isExternal(string $path): bool
     {
         foreach ($this->schemes as $scheme) {
-            if (strpos($path, $scheme) !== false) {
+            if (str_starts_with($path, $scheme)) {
                 return true;
             }
         }

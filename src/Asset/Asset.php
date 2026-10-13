@@ -392,7 +392,8 @@ class Asset implements AssetInterface
         }
 
         $hook = 'script' === $this->getType() ? 'script_loader_tag' : 'style_loader_tag';
-        $key = strtolower(trim($this->getHandle()));
+        // WordPress handles are case-sensitive.
+        $key = $this->getHandle();
         $attributes = $this->html->attributes($attributes);
 
         $this->filter->add($hook, function ($tag, $handle) use ($attributes, $key) {
