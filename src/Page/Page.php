@@ -620,6 +620,11 @@ class Page implements PageInterface
             return;
         }
 
+        // Saving through options.php requires the page capability, not "manage_options".
+        $this->filter->add('option_page_capability_' . $this->getSlug(), function () {
+            return $this->getCapability();
+        });
+
         // Configure sections.
         $sections->each(function ($section) {
             /** @var SectionInterface $section */

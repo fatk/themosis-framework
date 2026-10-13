@@ -127,4 +127,25 @@ class PageSettingsSanitizationTest extends WordPressTestCase
             app()->offsetUnset('page.' . $page->getSlug());
         }
     }
+
+    public function testOptionsPageSavingUsesThePageCapability(): void
+    {
+        $globals = [];
+        foreach (['wp_registered_settings', 'wp_settings_fields', 'wp_settings_sections', 'new_allowed_options'] as $name) {
+            $globals[$name] = [array_key_exists($name, $GLOBALS), $GLOBALS[$name] ?? null];
+        }
+        require_once ABSPATH . 'wp-admin/includes/template.php';
+        $page = app('page')->make($this->ownership, 'Owned capability')->setCapability('edit_posts');
+        $page->addSettings('general', [Field::text('owned')]);
+        try {
+            $page->configureSettings();
+            // wp-admin/options.php checks this filter before saving the option page.
+            self::assertSame('edit_posts', apply_filters('option_page_capability_' . $page->getSlug(), 'manage_options'));
+        } finally {
+            app()->offsetUnset('page.' . $page->getSlug());
+            foreach ($globals as $name => [$exists, $value]) {
+                if ($exists) { $GLOBALS[$name] = $value; } else { unset($GLOBALS[$name]); }
+            }
+        }
+    }
 }

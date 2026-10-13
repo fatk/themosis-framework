@@ -45,7 +45,7 @@ class MetaboxApiController
                 throw $e;
             }
             throw new HttpResponseException(response()->json([
-                'message' => $e->getMessage(),
+                'message' => config('app.debug') ? $e->getMessage() : 'Server Error',
                 'errors' => true,
             ], 500));
         }
@@ -82,7 +82,7 @@ class MetaboxApiController
                 throw $exception;
             }
             return response()->json([
-                'message' => $exception->getMessage(),
+                'message' => config('app.debug') ? $exception->getMessage() : 'Server Error',
                 'errors' => true,
             ], 500);
         }
