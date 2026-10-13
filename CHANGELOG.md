@@ -33,6 +33,11 @@ visible to applications and should be checked before updating a site.
   admin request (including page callbacks and redirects), and the kernel is
   terminated. Regenerating the session after admin output has started is
   not supported.
+- **Twig:** compiled templates are only re-checked against their sources
+  when `app.debug` is on (override with `view.twig_auto_reload`). Deploys must
+  clear compiled views (`optimize` / `view:clear` already do). Absolute template
+  paths are only accepted inside view locations.
+- **`wp.can` routes:** cross-site writes (non-GET/HEAD/OPTIONS) return 403.
 - **`make:auth`:** refuses to run; use `laravel/ui` (`php artisan ui:auth`).
 - **`salts:generate`:** works again. Salts no longer contain `$`.
 
@@ -46,6 +51,10 @@ visible to applications and should be checked before updating a site.
 - Page settings validate the supplied value. `options.php` saving honors the Page capability.
 - Custom post statuses: only registered statuses the user can publish are applied.
 - Conditional routes honor host and scheme constraints.
+- Twig template lookups are memoized per finder revision (no per-include
+  file probing or exceptions).
+- CSRF middleware checks the real HTTP method. An opaque `Origin: null` counts as
+  cross-site. The environment can no longer be set through `argv` on web requests.
 - Views: Blade `@template` arguments evaluate at render time. View paths stay
   stable. Twig resolves through the framework finder, including non-view
   includes such as `{% include 'svg/icon.svg' %}`.
