@@ -14,6 +14,22 @@ class TwigLoader implements LoaderInterface
 {
     public const MAIN_NAMESPACE = '__main__';
 
+    /**
+     * Resolved paths per template name, valid for one finder revision.
+     *
+     * @var array<string, string>
+     */
+    private array $resolved = [];
+
+    /**
+     * Lookup error messages per template name, valid for one finder revision.
+     *
+     * @var array<string, string>
+     */
+    private array $errors = [];
+
+    private int $revision = -1;
+
     public function __construct(private FileViewFinder $finder)
     {
     }
@@ -73,6 +89,32 @@ class TwigLoader implements LoaderInterface
 
     private function findTemplate(string $name): string
     {
+        // Twig asks for the same names several times per render (cache key,
+        // freshness, source): resolve each once until the finder changes.
+        if ($this->revision !== $this->finder->getRevision()) {
+            $this->resolved = $this->errors = [];
+            $this->revision = $this->finder->getRevision();
+        }
+
+        if (isset($this->resolved[$name])) {
+            return $this->resolved[$name];
+        }
+
+        if (isset($this->errors[$name])) {
+            throw new LoaderError($this->errors[$name]);
+        }
+
+        try {
+            return $this->resolved[$name] = $this->resolveTemplate($name);
+        } catch (LoaderError $error) {
+            $this->errors[$name] = $error->getRawMessage();
+
+            throw $error;
+        }
+    }
+
+    private function resolveTemplate(string $name): string
+    {
         if (str_contains($name, "\0")) {
             throw new LoaderError('A template name cannot contain NUL bytes.');
         }
@@ -106,15 +148,21 @@ class TwigLoader implements LoaderInterface
         }
         $view = str_replace('/', '.', $view);
 
+        // Non-view files (e.g. "svg/icon.svg") resolve by relative path, as with
+        // Twig's filesystem loader, in finder path order. Try them before the
+        // finder, which would otherwise probe every view extension first.
+        $basename = basename($relative);
+        $direct = str_contains($basename, '.') && ! str_ends_with($basename, '.twig');
+
+        if ($direct && ! is_null($file = $this->findRelative($namespace, $relative))) {
+            return $file;
+        }
+
         try {
             $path = $this->finder->find($view);
         } catch (InvalidArgumentException $exception) {
-            // Non-view files (e.g. "svg/icon.svg") resolve by relative path,
-            // as with Twig's filesystem loader, in finder path order.
-            foreach ($this->getPaths($namespace) as $directory) {
-                if (is_file($file = rtrim($directory, '/').'/'.ltrim($relative, '/'))) {
-                    return realpath($file) ?: $file;
-                }
+            if (! $direct && ! is_null($file = $this->findRelative($namespace, $relative))) {
+                return $file;
             }
 
             throw new LoaderError($exception->getMessage(), -1, null, $exception);
@@ -125,5 +173,16 @@ class TwigLoader implements LoaderInterface
         }
 
         return realpath($path) ?: $path;
+    }
+
+    private function findRelative(string $namespace, string $relative): ?string
+    {
+        foreach ($this->getPaths($namespace) as $directory) {
+            if (is_file($file = rtrim($directory, '/').'/'.ltrim($relative, '/'))) {
+                return realpath($file) ?: $file;
+            }
+        }
+
+        return null;
     }
 }

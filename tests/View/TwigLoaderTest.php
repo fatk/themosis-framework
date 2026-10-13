@@ -152,6 +152,39 @@ class TwigLoaderTest extends TestCase
         $this->assertFalse($this->loader->exists('../base/page.twig'));
     }
 
+    public function test_lookups_are_memoized_until_the_finder_changes()
+    {
+        $finder = new class($this->files, [$this->directory.'/base'], ['twig']) extends FileViewFinder {
+            public array $finds = [];
+            public function find($name)
+            {
+                $this->finds[] = $name;
+
+                return parent::find($name);
+            }
+        };
+        $loader = new \Themosis\View\TwigLoader($finder);
+        $this->files->makeDirectory($this->directory.'/base/svg', 0755, true);
+        $this->files->put($this->directory.'/base/svg/icon.svg', '<svg/>');
+        $this->files->put($this->directory.'/base/part.twig', 'part');
+        $this->files->put($this->directory.'/base/page.twig', str_repeat('{% include "svg/icon.svg" %}{% include "part.twig" %}', 10));
+        $twig = new Environment($loader, ['cache' => $this->directory.'/compiled']);
+
+        $this->assertSame(str_repeat('<svg/>part', 10), $twig->render('page.twig'));
+        $this->assertSame(['page', 'part'], array_values(array_unique($finder->finds)));
+        $this->assertCount(2, $finder->finds, 'Each view is looked up once; non-view files skip the finder.');
+
+        // Path changes and flushes invalidate both found and missing results.
+        $this->assertFalse($loader->exists('late.twig'));
+        $this->files->put($this->directory.'/late/late.twig', 'late');
+        $finder->addLocation($this->directory.'/late');
+        $this->assertTrue($loader->exists('late.twig'));
+        $this->files->put($this->directory.'/theme/part.twig', 'theme');
+        $finder->addOrderedLocation($this->directory.'/theme', 10);
+        $finder->flush();
+        $this->assertSame($this->directory.'/theme/part.twig', $loader->getCacheKey('part.twig'));
+    }
+
     public function test_missing_templates_raise_twig_loader_errors()
     {
         $this->expectException(LoaderError::class);

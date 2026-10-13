@@ -14,6 +14,90 @@ class FileViewFinder extends IlluminateFileViewFinder
     private $orderedPaths = [];
 
     /**
+     * Merged ordered and default paths, rebuilt after location changes.
+     *
+     * @var array|null
+     */
+    private $mergedPaths;
+
+    /**
+     * Incremented whenever locations, namespaces or found views change,
+     * so dependent caches (the Twig loader) know when to refresh.
+     *
+     * @var int
+     */
+    private $revision = 0;
+
+    /**
+     * Return the current lookup revision.
+     *
+     * @return int
+     */
+    public function getRevision(): int
+    {
+        return $this->revision;
+    }
+
+    /**
+     * Invalidate merged paths and dependent caches.
+     */
+    private function changed(): void
+    {
+        $this->mergedPaths = null;
+        $this->revision++;
+    }
+
+    public function addLocation($location)
+    {
+        parent::addLocation($location);
+        $this->changed();
+    }
+
+    public function prependLocation($location)
+    {
+        parent::prependLocation($location);
+        $this->changed();
+    }
+
+    public function setPaths($paths)
+    {
+        $result = parent::setPaths($paths);
+        $this->changed();
+
+        return $result;
+    }
+
+    public function addNamespace($namespace, $hints)
+    {
+        parent::addNamespace($namespace, $hints);
+        $this->changed();
+    }
+
+    public function prependNamespace($namespace, $hints)
+    {
+        parent::prependNamespace($namespace, $hints);
+        $this->changed();
+    }
+
+    public function replaceNamespace($namespace, $hints)
+    {
+        parent::replaceNamespace($namespace, $hints);
+        $this->changed();
+    }
+
+    public function addExtension($extension)
+    {
+        parent::addExtension($extension);
+        $this->changed();
+    }
+
+    public function flush()
+    {
+        parent::flush();
+        $this->changed();
+    }
+
+    /**
      * Return located views.
      *
      * @return array
@@ -32,6 +116,7 @@ class FileViewFinder extends IlluminateFileViewFinder
     public function addOrderedLocation(string $location, int $priority = 20)
     {
         $this->orderedPaths[] = new FileViewLocation($location, $priority);
+        $this->changed();
     }
 
     /**
@@ -41,7 +126,7 @@ class FileViewFinder extends IlluminateFileViewFinder
      */
     public function getPaths()
     {
-        return $this->parseOrderedPaths();
+        return $this->mergedPaths ??= $this->parseOrderedPaths();
     }
 
     /**
