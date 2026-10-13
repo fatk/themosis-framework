@@ -293,7 +293,7 @@ class Form extends HtmlBuilder implements FormInterface, FieldTypeInterface
     public function handleRequest(Request $request): FormInterface
     {
         // Refuse state-changing submissions the browser reports as cross-site (CSRF).
-        if (! $request->isMethodSafe() && RequestOrigin::isCrossSite($request)) {
+        if (! in_array($request->getRealMethod(), ['GET', 'HEAD', 'OPTIONS'], true) && RequestOrigin::isCrossSite($request)) {
             throw new AccessDeniedHttpException();
         }
 

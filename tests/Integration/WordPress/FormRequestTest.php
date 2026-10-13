@@ -38,14 +38,16 @@ class FormRequestTest extends WordPressTestCase
             'same-origin post' => ['POST', ['HTTP_SEC_FETCH_SITE' => 'same-origin'], true],
             'post without fetch metadata' => ['POST', [], true],
             'cross-site get' => ['GET', ['HTTP_SEC_FETCH_SITE' => 'cross-site'], true],
+            'cross-site post overridden to get' => ['POST', ['HTTP_SEC_FETCH_SITE' => 'cross-site'], false, ['_method' => 'GET']],
         ];
     }
 
     #[DataProvider('submissions')]
-    public function testCrossSiteSubmissionsAreRejected(string $method, array $server, bool $handled): void
+    public function testCrossSiteSubmissionsAreRejected(string $method, array $server, bool $handled, array $extra = []): void
     {
         $form = $this->form();
-        $request = Request::create('https://' . parse_url(home_url(), PHP_URL_HOST) . '/contact', $method, ['th_name' => 'value'], [], [], $server);
+        $request = Request::create('https://' . parse_url(home_url(), PHP_URL_HOST) . '/contact', $method, ['th_name' => 'value'] + $extra, [], [], $server);
+        Request::enableHttpMethodParameterOverride();
 
         try {
             $form->handleRequest($request);

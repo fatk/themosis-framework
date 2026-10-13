@@ -12,11 +12,13 @@ use Symfony\Component\HttpFoundation\Request;
 class RequestOrigin
 {
     /**
-     * Determine if the browser reports the request as sent from another site.
+     * Determine if the browser reports the request as sent from another site
+     * (or a sibling subdomain), mirroring PreventRequestForgery's defaults.
      *
      * Uses the Sec-Fetch-Site header sent by modern browsers, and falls
      * back to comparing the Origin header host. Requests without either
-     * header (legacy clients, server-to-server calls) are not rejected.
+     * header (very old browsers, server-to-server calls without the
+     * victim's cookies) are not rejected, so existing clients keep working.
      */
     public static function isCrossSite(?Request $request = null): bool
     {
@@ -25,7 +27,7 @@ class RequestOrigin
         $site = $request->headers->get('Sec-Fetch-Site');
 
         if (! is_null($site)) {
-            return 'cross-site' === strtolower($site);
+            return ! in_array(strtolower($site), ['same-origin', 'none'], true);
         }
 
         $origin = $request->headers->get('Origin');
