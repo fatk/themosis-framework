@@ -30,6 +30,7 @@ class UserFieldPersistenceTest extends WordPressTestCase
     public function testRealUpdatePreservesUnsubmittedAndInvalidMetadata(array $values, string $noteValue, string $siblingValue, array $choicesValue, bool $flagExists, bool $error): void
     {
         $id = $this->createUser('subscriber');
+        wp_set_current_user($id); // Users may edit their own profile fields.
         $previousRequest = app('request');
         $registry = $GLOBALS['wp_meta_keys'] ?? [];
         try {
@@ -75,10 +76,40 @@ class UserFieldPersistenceTest extends WordPressTestCase
             $choices->setOptions(['multiple' => true, 'choices' => ['A' => 'a', 'B' => 'b']]);
             $manager->add($flag)->add($choices);
             $manager->set();
+            wp_set_current_user($this->createUser('administrator'));
             app()->instance('request', Request::create('/', 'POST', ['th_flag' => '1', 'th_choices' => ['a', 'b']]));
             $id = $this->createUser('subscriber');
             self::assertSame('on', get_user_meta($id, 'th_flag', true));
             self::assertSame(['a', 'b'], get_user_meta($id, 'th_choices', false));
+        } finally {
+            app()->instance('request', $previousRequest);
+            $GLOBALS['wp_meta_keys'] = $registry;
+        }
+    }
+
+    public function testAnonymousRegistrationAndOtherUsersCannotWriteFields(): void
+    {
+        $previousRequest = app('request');
+        $registry = $GLOBALS['wp_meta_keys'] ?? [];
+        try {
+            $manager = app('themosis.user.field')->make();
+            $note = new TextType('note');
+            $note->setOptions([]);
+            $manager->add($note);
+            $manager->set();
+            app()->instance('request', Request::create('/', 'POST', ['th_note' => 'forged']));
+
+            // Anonymous signup (e.g. wp-login.php?action=register).
+            wp_set_current_user(0);
+            $registered = $this->createUser('subscriber');
+            self::assertFalse(metadata_exists('user', $registered, 'th_note'));
+
+            // A subscriber updating somebody else's profile.
+            $victim = $this->createUser('subscriber');
+            update_user_meta($victim, 'th_note', 'original');
+            wp_set_current_user($this->createUser('subscriber'));
+            self::assertNotWPError(wp_update_user(['ID' => $victim, 'display_name' => 'Changed']));
+            self::assertSame('original', get_user_meta($victim, 'th_note', true));
         } finally {
             app()->instance('request', $previousRequest);
             $GLOBALS['wp_meta_keys'] = $registry;

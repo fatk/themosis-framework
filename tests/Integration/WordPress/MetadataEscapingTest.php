@@ -85,6 +85,7 @@ class MetadataEscapingTest extends WordPressTestCase
         $previousRequest = app('request');
         $registry = $GLOBALS['wp_meta_keys'] ?? [];
         $cookies = $_COOKIE;
+        wp_set_current_user($this->createUser('administrator'));
         try {
             app()->instance('request', Request::create('/', 'POST'));
             if ($type === 'user') {

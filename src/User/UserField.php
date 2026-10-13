@@ -238,6 +238,12 @@ class UserField implements UserFieldContract
      */
     public function save($user_id)
     {
+        // Covers own-profile edits and administrators; excludes anonymous
+        // registrations and users editing somebody else's profile.
+        if (! current_user_can('edit_user', $user_id)) {
+            return;
+        }
+
         $data = $this->getUserData(app('request'));
         $validator = $this->validator->make(
             $data,

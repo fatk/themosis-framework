@@ -150,6 +150,10 @@ class TaxonomyField
     protected function save()
     {
         return function ($term_id) {
+            if (! current_user_can('edit_term', $term_id)) {
+                return;
+            }
+
             /** @var Validator $validator */
             $data = $this->getTermData(app('request'));
             $validator = $this->validator->make(

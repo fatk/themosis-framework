@@ -33,6 +33,7 @@ class TaxonomyFieldPersistenceTest extends WordPressTestCase
         self::assertNotWPError($result);
         $id = $result['term_id'];
         $this->ownedTerms[] = [$id, 'category'];
+        wp_set_current_user($this->createUser('administrator'));
         $previousRequest = app('request');
         $registry = $GLOBALS['wp_meta_keys'] ?? [];
         try {
@@ -80,6 +81,7 @@ class TaxonomyFieldPersistenceTest extends WordPressTestCase
             $choices->setOptions(['multiple' => true, 'choices' => ['A' => 'a', 'B' => 'b']]);
             $manager->add($flag)->add($choices);
             $manager->set();
+            wp_set_current_user($this->createUser('administrator'));
             app()->instance('request', Request::create('/', 'POST', ['th_flag' => '1', 'th_choices' => ['a', 'b']]));
             $result = wp_insert_term($this->ownership, 'category');
             self::assertNotWPError($result);
@@ -87,6 +89,35 @@ class TaxonomyFieldPersistenceTest extends WordPressTestCase
             $this->ownedTerms[] = [$id, 'category'];
             self::assertSame('on', get_term_meta($id, 'th_flag', true));
             self::assertSame(['a', 'b'], get_term_meta($id, 'th_choices', false));
+        } finally {
+            app()->instance('request', $previousRequest);
+            $GLOBALS['wp_meta_keys'] = $registry;
+        }
+    }
+
+    public function testUsersWithoutTermCapabilitiesCannotWriteFields(): void
+    {
+        $previousRequest = app('request');
+        $registry = $GLOBALS['wp_meta_keys'] ?? [];
+        try {
+            $taxonomy = new \Themosis\Taxonomy\Taxonomy('category', ['post'], app(), app('action'));
+            $manager = new \Themosis\Taxonomy\TaxonomyField($taxonomy, new \Themosis\Taxonomy\TaxonomyFieldRepository(), app('view'), app('validator'), app('action'), []);
+            $note = new TextType('note');
+            $note->setOptions([]);
+            $manager->add($note);
+            $manager->set();
+            wp_set_current_user($this->createUser('contributor'));
+            app()->instance('request', Request::create('/', 'POST', ['th_note' => 'forged']));
+
+            $result = wp_insert_term($this->ownership, 'category');
+            self::assertNotWPError($result);
+            $id = $result['term_id'];
+            $this->ownedTerms[] = [$id, 'category'];
+            self::assertFalse(metadata_exists('term', $id, 'th_note'));
+
+            update_term_meta($id, 'th_note', 'original');
+            self::assertNotWPError(wp_update_term($id, 'category', ['description' => 'Changed']));
+            self::assertSame('original', get_term_meta($id, 'th_note', true));
         } finally {
             app()->instance('request', $previousRequest);
             $GLOBALS['wp_meta_keys'] = $registry;
